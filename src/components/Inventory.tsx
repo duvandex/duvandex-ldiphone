@@ -971,6 +971,7 @@ export default function Inventory() {
                   <Select value={newProduct.category} onValueChange={v => setNewProduct({...newProduct, category: v as Category})}>
                     <SelectTrigger className="rounded-xl border-slate-100 h-11 font-bold text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent className="rounded-2xl border-slate-100">
+                      <SelectItem value="POKEMON">POKEMON</SelectItem>
                       <SelectItem value="CELULARES">CELULARES</SelectItem>
                       <SelectItem value="TABLETS">TABLETS</SelectItem>
                       <SelectItem value="RELOJ INTELIGENTES">RELOJ INTELIGENTES</SelectItem>
@@ -1942,6 +1943,7 @@ export default function Inventory() {
                 <Select value={editProductState?.category || 'CELULARES'} onValueChange={v => setEditProductState(prev => prev ? ({...prev, category: v as Category}) : null)}>
                   <SelectTrigger className="rounded-xl border-slate-100 h-11 font-bold text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent className="rounded-2xl border-slate-100">
+                    <SelectItem value="POKEMON">POKEMON</SelectItem>
                     <SelectItem value="CELULARES">CELULARES</SelectItem>
                     <SelectItem value="TABLETS">TABLETS</SelectItem>
                     <SelectItem value="RELOJ INTELIGENTES">RELOJ INTELIGENTES</SelectItem>

@@ -231,138 +231,62 @@ Your tasks:
 6. Output the result in the requested JSON structure. Keep description brief but highly accurate.`,
       };
 
-    // Attempt scanning using allowed Gemini models with fallback, retries, and backoff logic
+    // Attempt scanning using allowed Gemini models with fallback
     const modelsToTry = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
     let lastError: any = null;
     let responseText = "";
 
     for (const modelName of modelsToTry) {
-      // Try each model up to 3 times to mitigate transient 503/UNAVAILABLE errors
-      const maxRetries = 3;
-      let skipRemainingRetries = false;
-
-      for (let attempt = 1; attempt <= maxRetries; attempt++) {
-        try {
-          console.log(`Attempting scan with model: ${modelName} (Attempt ${attempt}/${maxRetries})`);
-          const response = await ai.models.generateContent({
-            model: modelName,
-            contents: { parts: [imagePart, promptPart] },
-            config: {
-              responseMimeType: "application/json",
-              responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                  type: {
-                    type: Type.STRING,
-                    description: "Must be 'card' or 'sealed' depending on whether it is a single card or a sealed product (like ETB, booster box, UPC, tin, booster pack, etc.)",
-                  },
-                  name: {
-                    type: Type.STRING,
-                    description: "The official name of the Pokémon card or product (e.g. 'Charizard ex' or '151 Ultra Premium Collection')"
-                  },
-                  set: {
-                    type: Type.STRING,
-                    description: "The name of the official TCG set (e.g. 'Scarlet & Violet 151', 'Obsidian Flames')"
-                  },
-                  cardNumber: {
-                    type: Type.STRING,
-                    description: "The card collector number (e.g. '199/165', '223/197'). For sealed products, return an empty string or omit."
-                  },
-                  language: {
-                    type: Type.STRING,
-                    description: "The language of the card/product (e.g. 'Inglés', 'Español', 'Japonés', 'Alemán', 'Francés', 'Italiano', 'Coreano', 'Chino')"
-                  },
-                  rarity: {
-                    type: Type.STRING,
-                    description: "The rarity of the card (e.g. 'Illustration Rare', 'Special Illustration Rare', 'Secret Rare', 'Common', 'Uncommon'). For sealed products, return 'Sealed Product'."
-                  },
-                  tcgplayerPrice: {
-                    type: Type.NUMBER,
-                    description: "The current estimated TCGplayer market price in USD as a floating number (e.g. 119.99)."
-                  },
-                  suggestedImageUrl: {
-                    type: Type.STRING,
-                    description: "A high-quality direct public URL to the official card art or product image, or a valid representative official image URL, or a placeholder."
-                  },
-                  confidenceScore: {
-                    type: Type.NUMBER,
-                    description: "Confidence rating from 0 to 1 of the identification."
-                  },
-                  reasoning: {
-                    type: Type.STRING,
-                    description: "A short professional explanation of how the card/product was identified and the pricing source info."
-                  }
-                },
-                required: ["type", "name", "set", "tcgplayerPrice", "confidenceScore", "reasoning", "language"]
-              }
+      try {
+        console.log(`Attempting scan with model: ${modelName}`);
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: { parts: [imagePart, promptPart] },
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                type: { type: Type.STRING },
+                name: { type: Type.STRING },
+                set: { type: Type.STRING },
+                cardNumber: { type: Type.STRING },
+                language: { type: Type.STRING },
+                rarity: { type: Type.STRING },
+                tcgplayerPrice: { type: Type.NUMBER },
+                suggestedImageUrl: { type: Type.STRING },
+                confidenceScore: { type: Type.NUMBER },
+                reasoning: { type: Type.STRING }
+              },
+              required: ["type", "name", "set", "tcgplayerPrice", "confidenceScore", "reasoning", "language"]
             }
-          });
-
-          responseText = response.text || "";
-          if (responseText) {
-            console.log(`Scan successful with model: ${modelName}`);
-            break; // Success! Break the retry loop
           }
-        } catch (err: any) {
-          console.warn(`Scan failed with model ${modelName} on attempt ${attempt}:`, err.message || err);
-          lastError = err;
+        });
 
-          // Detect 429 Quota Exceeded / RESOURCE_EXHAUSTED / 503 UNAVAILABLE
-          const isRetryableError = 
-            err.status === "RESOURCE_EXHAUSTED" || 
-            err.code === 429 || 
-            err.status === 429 ||
-            err.code === 503 ||
-            err.status === 503 ||
-            (err.message && (
-              err.message.includes("429") || 
-              err.message.includes("503") ||
-              err.message.toLowerCase().includes("quota") || 
-              err.message.toLowerCase().includes("limit") || 
-              err.message.toLowerCase().includes("exhausted") ||
-              err.message.toLowerCase().includes("unavailable") ||
-              err.message.toLowerCase().includes("busy")
-            ));
-
-          if (isRetryableError) {
-            if (attempt < maxRetries) {
-              // Exponential backoff: 2s, 4s, 8s
-              const delay = Math.pow(2, attempt) * 1000;
-              console.log(`Retrying model ${modelName} in ${delay}ms...`);
-              await new Promise((resolve) => setTimeout(resolve, delay));
-            } else {
-              console.warn(`Max retries reached for model ${modelName}. Trying next model.`);
-            }
-          } else {
-            // For other non-retryable errors, skip this model
-            console.warn(`Non-retryable error for model ${modelName}. Skipping.`);
-            break;
-          }
+        if (response && response.text) {
+          responseText = response.text;
+          break;
         }
-      }
-      if (responseText) {
-        break; // Success! Break the model loop
+      } catch (err: any) {
+        console.warn(`Scan failed with model ${modelName}:`, err.message || err);
+        lastError = err;
+        // Optimization: Don't retry same model on Vercel to save time, move to next model
       }
     }
 
-
-      if (!responseText) {
-        throw new Error(
-          lastError?.message || 
-          "El servicio de análisis de Pokémon está experimentando alta demanda en todos los modelos disponibles."
-        );
-      }
-
-      const scanResult = JSON.parse(responseText.trim());
-      const colPrice = await getCollectrPrice(scanResult.name, scanResult.set, scanResult.type || 'card');
-      scanResult.collectrPrice = colPrice;
-      res.json(scanResult);
-    } catch (error: any) {
-      console.error("Error in pokemon scan after all fallbacks, sending user manual fallback template:", error);
-      const fallbackResult = fallbackParseScan();
-      res.json(fallbackResult);
+    if (!responseText) {
+      return res.status(500).json({ error: "No se pudo analizar la imagen. " + (lastError?.message || "Intenta de nuevo.") });
     }
-  });
+
+    const scanResult = JSON.parse(responseText.trim());
+    const colPrice = await getCollectrPrice(scanResult.name, scanResult.set, scanResult.type || 'card');
+    scanResult.collectrPrice = colPrice;
+    res.json(scanResult);
+  } catch (error: any) {
+    console.error("Critical error in scan:", error);
+    res.status(500).json({ error: "Error crítico al procesar el escaneo." });
+  }
+});
 
   // Helper function to parse pokemon queries into name and collector number parts
   function parsePokemonQuery(query: string) {
@@ -582,6 +506,7 @@ Your tasks:
         return res.status(400).json({ error: "No search query provided" });
       }
 
+      // Optimization: Try to be fast to avoid Vercel timeouts (10s limit)
       const isSealed = /box|booster|etb|upc|deck|bundle|display|pack|tin/i.test(query);
 
       if (!isSealed) {
@@ -595,228 +520,102 @@ Your tasks:
         }
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 4000); // reduced to 4 seconds for faster fallback
 
-        console.log(`Searching official Pokemon TCG API for card query "${query}":`, url);
-        const officialRes = await fetch(url, {
-          headers,
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
+        try {
+          console.log(`Searching official Pokemon TCG API for card query "${query}":`, url);
+          const officialRes = await fetch(url, {
+            headers,
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
 
-        if (officialRes.ok) {
-          const officialData = await officialRes.json() as any;
-          const cards = officialData.data || [];
-          if (cards.length > 0) {
-            const card = cards[0];
-            let tcgPrice = getBestPrice(card.tcgplayer);
-            
-            console.log(`Found direct card match on official Pokemon TCG API: ${card.name} (${card.id})`);
-            
-            let detectedLanguage = "Inglés";
-            const queryLower = query.toLowerCase();
-            if (queryLower.includes("español") || queryLower.includes("spanish")) detectedLanguage = "Español";
-            else if (queryLower.includes("japon") || queryLower.includes("japanese")) detectedLanguage = "Japonés";
-            else if (queryLower.includes("aleman") || queryLower.includes("german")) detectedLanguage = "Alemán";
-            else if (queryLower.includes("frances") || queryLower.includes("french")) detectedLanguage = "Francés";
-            else if (queryLower.includes("italian")) detectedLanguage = "Italiano";
-            else if (queryLower.includes("corean") || queryLower.includes("korean")) detectedLanguage = "Coreano";
-            else if (queryLower.includes("chin") || queryLower.includes("chinese")) detectedLanguage = "Chino";
-
-            let notes = `Identificado exitosamente a través de la API oficial de Pokémon TCG. Expansión: ${card.set?.name}. Precio de mercado de TCGplayer actualizado.`;
-
-            // If the price is 0 (missing in API) or the card language is not English, use Gemini to estimate/adjust the price!
-            if (tcgPrice === 0 || detectedLanguage !== "Inglés") {
-              try {
-                console.log(`Price is 0 or card is non-English (${detectedLanguage}). Consulting Gemini to estimate accurate price...`);
-                const ai = getAiClient();
-                const response = await ai.models.generateContent({
-                  model: "gemini-flash-latest",
-                  contents: {
-                    parts: [{
-                      text: `Actúa como un experto valuador de mercado de Pokémon TCG.
-Determina el precio de mercado real estimado en USD para la siguiente carta de Pokémon:
-Nombre: ${card.name}
-Expansión/Set: ${card.set?.name || 'Perfect Order'}
-Número de carta: ${card.number}/${card.set?.printedTotal || ''}
-Rareza: ${card.rarity || 'Illustration Rare'}
-Idioma de la carta: ${detectedLanguage}
-
-Toma en cuenta que los precios varían significativamente según el idioma (por ejemplo, las cartas en chino, japonés o español suelen tener un valor de mercado diferente al de las cartas en inglés). Si el precio de mercado para este idioma no está disponible, calcula el valor proporcional basado en el mercado internacional actual.
-
-Responde ÚNICAMENTE con un JSON con el formato: { "price": number, "reasoning": string en español }`
-                    }]
-                  },
-                  config: {
-                    responseMimeType: "application/json",
-                    responseSchema: {
-                      type: Type.OBJECT,
-                      properties: {
-                        price: { type: Type.NUMBER },
-                        reasoning: { type: Type.STRING }
-                      },
-                      required: ["price", "reasoning"]
-                    }
-                  }
+          if (officialRes.ok) {
+            const data = (await officialRes.json()) as any;
+            if (data.data && data.data.length > 0) {
+              const card = data.data[0];
+              const tcgPrice = getBestPrice(card.tcgplayer);
+              const img = card.images?.small || card.images?.large || '';
+              
+              const detectedLanguage = (card.name && /[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff]/.test(card.name)) ? 'Japonés' : 'Inglés';
+              
+              // If we have a price and it's English, return immediately to save time
+              if (tcgPrice > 0 && detectedLanguage === 'Inglés') {
+                return res.json({
+                  id: card.id,
+                  type: 'card',
+                  name: card.name,
+                  set: card.set?.name || 'Unknown Set',
+                  cardNumber: `${card.number}/${card.set?.printedTotal || ''}`,
+                  rarity: card.rarity || 'Common',
+                  tcgplayerPrice: tcgPrice,
+                  imageUrl: img,
+                  suggestedImageUrl: img,
+                  language: detectedLanguage,
+                  confidenceScore: 0.95,
+                  reasoning: "Encontrado directamente en la base de datos oficial de TCG."
                 });
-
-                if (response && response.text) {
-                  const resData = JSON.parse(response.text.trim());
-                  if (resData.price && resData.price > 0) {
-                    tcgPrice = resData.price;
-                    notes = `Sincronizado con IA para idioma ${detectedLanguage}: ${resData.reasoning}`;
-                    console.log(`Gemini estimated price for ${card.name} (${detectedLanguage}): $${tcgPrice}. Reasoning: ${resData.reasoning}`);
-                  }
-                }
-              } catch (geminiErr) {
-                console.warn("Failed to get Gemini price estimation for card:", geminiErr);
               }
+              // Otherwise continue to Gemini for better estimation if needed (but faster)
             }
-
-            const collectrPrice = await getCollectrPrice(card.name, card.set?.name || '', 'card');
-
-            return res.json({
-              type: 'card',
-              name: card.name,
-              set: card.set?.name || 'Unknown Set',
-              cardNumber: `${card.number}/${card.set?.printedTotal || ''}`,
-              rarity: card.rarity || 'Common',
-              tcgplayerPrice: tcgPrice || 0.99,
-              collectrPrice: collectrPrice,
-              suggestedImageUrl: card.images?.large || card.images?.small || '',
-              imageUrl: card.images?.large || card.images?.small || '',
-              confidenceScore: 1.0,
-              language: detectedLanguage,
-              reasoning: notes
-            });
           }
+        } catch (apiErr) {
+          console.warn("Official TCG API search failed or timed out, falling back to AI:", apiErr);
         }
       }
 
-      console.log(`Falling back to Gemini model for search query "${query}"`);
+      // If TCG API failed, was slow, or we need AI valuation
       const ai = getAiClient();
-
-      const promptPart = {
-        text: `You are a professional Pokemon TCG and sealed product collector expert.
-Analyze the user's query about a Pokemon TCG card or sealed product: "${query}"
-
-Your tasks:
-1. Identify whether it is a single card or a sealed product (ETB, booster box, booster pack, UPC, tin, etc.).
-2. Determine the exact official item name, the set name, the card number (e.g. "151/165" or "GG44/GG70") if it is a card, and its rarity.
-3. Identify the language of the card or product from the query if specified (e.g., if query says "en español", "japanese", "ingles"), otherwise default to "Inglés" (e.g., 'Inglés', 'Español', 'Japonés', 'Alemán', 'Francés', 'Italiano', 'Coreano', 'Chino').
-4. Determine the current TCGplayer market price in USD based on current trends, historical value, and the language of the item. Be as accurate as possible for the queried item, considering that different languages have different market values (e.g. Japanese or Spanish cards are priced differently than English cards).
-5. Provide a representative high-quality suggested image URL if possible (e.g. from official sources or typical pokemon assets, or a fallback. Use a valid public link or suggest an official-looking CDN URL, or return empty/placeholder string if absolutely none).
-6. Output the result in the requested JSON structure. Keep description/reasoning brief but highly accurate.`,
-      };
-
-      const modelsToTry = ["gemini-flash-latest", "gemini-3.1-flash-lite", "gemini-3.5-flash"];
-      let lastError: any = null;
+      // Use faster models first for Vercel
+      const modelsToTry = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
       let responseText = "";
+      let lastError = null;
 
       for (const modelName of modelsToTry) {
-        const maxRetries = 3;
-        let skipRemainingRetries = false;
-
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
-          try {
-            console.log(`Attempting search with model: ${modelName} (Attempt ${attempt}/${maxRetries})`);
-            const response = await ai.models.generateContent({
-              model: modelName,
-              contents: { parts: [promptPart] },
-              config: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                  type: Type.OBJECT,
-                  properties: {
-                    type: {
-                      type: Type.STRING,
-                      description: "Must be 'card' or 'sealed' depending on whether it is a single card or a sealed product (like ETB, booster box, UPC, tin, booster pack, etc.)",
-                    },
-                    name: {
-                      type: Type.STRING,
-                      description: "The official name of the Pokémon card or product (e.g. 'Charizard ex' or '151 Ultra Premium Collection')"
-                    },
-                    set: {
-                      type: Type.STRING,
-                      description: "The name of the official TCG set (e.g. 'Scarlet & Violet 151', 'Obsidian Flames')"
-                    },
-                    cardNumber: {
-                      type: Type.STRING,
-                      description: "The card collector number (e.g. '199/165', '223/197'). For sealed products, return an empty string or omit."
-                    },
-                    language: {
-                      type: Type.STRING,
-                      description: "The language of the card/product (e.g. 'Inglés', 'Español', 'Japonés', 'Alemán', 'Francés', 'Italiano', 'Coreano', 'Chino')"
-                    },
-                    rarity: {
-                      type: Type.STRING,
-                      description: "The rarity of the card (e.g. 'Illustration Rare', 'Special Illustration Rare', 'Secret Rare', 'Common', 'Uncommon'). For sealed products, return 'Sealed Product'."
-                    },
-                    tcgplayerPrice: {
-                      type: Type.NUMBER,
-                      description: "The current estimated TCGplayer market price in USD as a floating number (e.g. 119.99)."
-                    },
-                    suggestedImageUrl: {
-                      type: Type.STRING,
-                      description: "A high-quality direct public URL to the official card art or product image, or a valid representative official image URL, or a placeholder."
-                    },
-                    confidenceScore: {
-                      type: Type.NUMBER,
-                      description: "Confidence rating from 0 to 1 of the identification."
-                    },
-                    reasoning: {
-                      type: Type.STRING,
-                      description: "A short professional explanation of how the card/product was identified and the pricing source info."
-                    }
-                  },
-                  required: ["type", "name", "set", "tcgplayerPrice", "confidenceScore", "reasoning", "language"]
-                }
+        try {
+          console.log(`Searching with model: ${modelName}`);
+          const response = await ai.models.generateContent({
+            model: modelName,
+            contents: {
+              parts: [{
+                text: `Identify and price this Pokémon TCG item: "${query}"
+Format response as JSON: { "type": "card"|"sealed", "name": string, "set": string, "cardNumber": string, "rarity": string, "tcgplayerPrice": number, "confidenceScore": number, "reasoning": string, "language": string }`
+              }]
+            },
+            config: {
+              responseMimeType: "application/json",
+              responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                  type: { type: Type.STRING },
+                  name: { type: Type.STRING },
+                  set: { type: Type.STRING },
+                  cardNumber: { type: Type.STRING },
+                  rarity: { type: Type.STRING },
+                  tcgplayerPrice: { type: Type.NUMBER },
+                  confidenceScore: { type: Type.NUMBER },
+                  reasoning: { type: Type.STRING },
+                  language: { type: Type.STRING }
+                },
+                required: ["type", "name", "set", "tcgplayerPrice", "confidenceScore", "reasoning", "language"]
               }
-            });
-
-            if (response && response.text) {
-              responseText = response.text;
-              console.log(`Search successful with model: ${modelName}`);
-              break;
             }
-          } catch (err: any) {
-            console.warn(`Search failed with model ${modelName} on attempt ${attempt}:`, err.message || err);
-            lastError = err;
+          });
 
-            const isQuotaError = 
-              err.status === "RESOURCE_EXHAUSTED" || 
-              err.code === 429 || 
-              err.status === 429 ||
-              (err.message && (
-                err.message.includes("429") || 
-                err.message.toLowerCase().includes("quota") || 
-                err.message.toLowerCase().includes("limit") || 
-                err.message.toLowerCase().includes("exhausted")
-              ));
-
-            if (isQuotaError) {
-              console.warn(`Quota limit reached for model ${modelName}. Skipping further retries for this model.`);
-              skipRemainingRetries = true;
-              break;
-            }
-
-            if (attempt < maxRetries) {
-              const delay = attempt * 1000 + 500;
-              await new Promise((resolve) => setTimeout(resolve, delay));
-            }
+          if (response && response.text) {
+            responseText = response.text;
+            break;
           }
+        } catch (err: any) {
+          console.warn(`Model ${modelName} failed:`, err.message || err);
+          lastError = err;
+          // If quota error, skip to next model immediately
         }
-        if (responseText) {
-          break;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 600));
       }
 
       if (!responseText) {
-        throw new Error(
-          lastError?.message || 
-          "El servicio de búsqueda de Pokémon está experimentando alta demanda."
-        );
+        // Return 500 so frontend handles it correctly
+        return res.status(500).json({ error: "El servicio de IA no está disponible temporalmente. " + (lastError?.message || "Intenta de nuevo.") });
       }
 
       const searchResult = JSON.parse(responseText.trim());
@@ -824,281 +623,78 @@ Your tasks:
       searchResult.collectrPrice = collectrPrice;
       res.json(searchResult);
     } catch (error: any) {
-      console.error("Error in pokemon search after all fallbacks, sending user manual fallback query template:", error);
-      const fallbackResult = fallbackParseQuery(query);
-      res.json(fallbackResult);
+      console.error("Critical error in search:", error);
+      res.status(500).json({ error: "Ocurrió un error crítico durante la búsqueda." });
     }
   });
 
   // API Route for bulk Pokémon TCG prices synchronization (Cards and Sealed products)
   app.post("/api/pokemon/sync", async (req, res) => {
+    const startTime = Date.now();
     try {
       const { items } = req.body || {};
       if (!items || !Array.isArray(items)) {
-        return res.status(400).json({ error: "No items provided or invalid format" });
+        return res.status(400).json({ error: "No items provided" });
       }
 
-      console.log(`Starting bulk Pokémon TCG synchronization for ${items.length} items...`);
+      console.log(`Starting bulk Pokémon TCG sync for ${items.length} items...`);
       const updates: any[] = [];
-
-      // 1. Block withCardId: Process cards that have a valid pokemontcg.io card ID
-      const withCardId = items.filter(
-        (item: any) =>
-          item.type === "card" &&
-          item.id &&
-          !item.id.startsWith("manual-") &&
-          item.id.includes("-")
-      );
-
-      console.log(`Found ${withCardId.length} card items with valid card ID.`);
-      for (const item of withCardId) {
-        try {
-          const url = `https://api.pokemontcg.io/v2/cards/${item.id}`;
-          const response = await fetch(url, {
-            headers: { "User-Agent": "aistudio-build" },
-          });
-          if (response.ok) {
-            const data = (await response.json()) as any;
-            if (data && data.data) {
-              const card = data.data;
-              const tcgPrice = getBestPrice(card.tcgplayer);
-              
-              let finalPrice = tcgPrice;
-              let syncNotes = `Sincronizado con la API oficial de Pokémon TCG. Expansión: ${card.set?.name || item.set}.`;
-              const itemLang = item.language || "Inglés";
-
-              if (finalPrice === 0 || itemLang !== "Inglés") {
-                try {
-                  console.log(`Sync card ${item.name} (${itemLang}) has price 0 or is non-English. Calling Gemini to estimate...`);
-                  const aiClientInst = getAiClient();
-                  const geminiResponse = await aiClientInst.models.generateContent({
-                    model: "gemini-flash-latest",
-                    contents: {
-                      parts: [{
-                        text: `Actúa como un experto valuador de mercado de Pokémon TCG.
-Estima el precio actual de mercado en USD para la siguiente carta de Pokémon:
-Nombre: ${card.name}
-Expansión/Set: ${card.set?.name || item.set}
-Número de carta: ${card.number || item.cardNumber || ''}
-Rareza: ${card.rarity || item.rarity || ''}
-Idioma de la carta: ${itemLang}
-
-Toma en cuenta que los precios varían significativamente según el idioma (por ejemplo, las cartas en chino, japonés o español suelen tener un valor de mercado diferente al de las cartas en inglés). Si hay un precio de referencia de TCGplayer para este idioma, utilízalo.
-
-Responde ÚNICAMENTE con un JSON con el formato: { "price": number, "reasoning": string en español }`
-                      }]
-                    },
-                    config: {
-                      responseMimeType: "application/json",
-                      responseSchema: {
-                        type: Type.OBJECT,
-                        properties: {
-                          price: { type: Type.NUMBER },
-                          reasoning: { type: Type.STRING }
-                        },
-                        required: ["price", "reasoning"]
-                      }
-                    }
-                  });
-
-                  if (geminiResponse && geminiResponse.text) {
-                    const resData = JSON.parse(geminiResponse.text.trim());
-                    if (resData.price && resData.price > 0) {
-                      finalPrice = resData.price;
-                      syncNotes = `Sincronizado con IA para idioma ${itemLang}: ${resData.reasoning}`;
-                    }
-                  }
-                } catch (geminiErr) {
-                  console.warn("Failed to get Gemini price estimation for card sync:", geminiErr);
-                }
-              }
-
-              if (finalPrice > 0 || tcgPrice > 0) {
-                const collectrPrice = await getCollectrPrice(card.name, card.set?.name || item.set, 'card');
-                updates.push({
-                  id: item.id,
-                  tcgplayerPrice: finalPrice || tcgPrice || 0.99,
-                  collectrPrice: collectrPrice,
-                  imageUrl: card.images?.large || card.images?.small || item.imageUrl,
-                  notes: syncNotes,
-                });
-              }
-            }
-          }
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        } catch (err) {
-          console.error(`Error syncing withCardId for item ${item.id}:`, err);
-        }
-      }
-
-      // 2. Block withoutCardId: Process cards that don't have a valid card ID (manually added or similar)
-      const withoutCardId = items.filter(
-        (item: any) =>
-          item.type === "card" &&
-          (!item.id || item.id.startsWith("manual-") || !item.id.includes("-"))
-      );
-
-      console.log(`Found ${withoutCardId.length} card items without valid card ID.`);
-      for (const item of withoutCardId) {
-        try {
-          const q = buildTcgplayerQuery(`${item.name} ${item.set} ${item.cardNumber || ""}`);
-          const url = `https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(q)}&pageSize=1`;
-          const response = await fetch(url, {
-            headers: { "User-Agent": "aistudio-build" },
-          });
-          if (response.ok) {
-            const data = (await response.json()) as any;
-            if (data && data.data && data.data.length > 0) {
-              const card = data.data[0];
-              const tcgPrice = getBestPrice(card.tcgplayer);
-              
-              let finalPrice = tcgPrice;
-              let syncNotes = `Sincronizado con búsqueda en la API de Pokémon TCG. Expansión: ${card.set?.name || item.set}.`;
-              const itemLang = item.language || "Inglés";
-
-              if (finalPrice === 0 || itemLang !== "Inglés") {
-                try {
-                  console.log(`Sync card without card ID ${item.name} (${itemLang}) has price 0 or is non-English. Calling Gemini to estimate...`);
-                  const aiClientInst = getAiClient();
-                  const geminiResponse = await aiClientInst.models.generateContent({
-                    model: "gemini-flash-latest",
-                    contents: {
-                      parts: [{
-                        text: `Actúa como un experto valuador de mercado de Pokémon TCG.
-Estima el precio actual de mercado en USD para la siguiente carta de Pokémon:
-Nombre: ${card.name}
-Expansión/Set: ${card.set?.name || item.set}
-Número de carta: ${card.number || item.cardNumber || ''}
-Rareza: ${card.rarity || item.rarity || ''}
-Idioma de la carta: ${itemLang}
-
-Toma en cuenta que los precios varían significativamente según el idioma (por ejemplo, las cartas en chino, japonés o español suelen tener un valor de mercado diferente al de las cartas en inglés). Si hay un precio de referencia de TCGplayer para este idioma, utilízalo.
-
-Responde ÚNICAMENTE con un JSON con el formato: { "price": number, "reasoning": string en español }`
-                      }]
-                    },
-                    config: {
-                      responseMimeType: "application/json",
-                      responseSchema: {
-                        type: Type.OBJECT,
-                        properties: {
-                          price: { type: Type.NUMBER },
-                          reasoning: { type: Type.STRING }
-                        },
-                        required: ["price", "reasoning"]
-                      }
-                    }
-                  });
-
-                  if (geminiResponse && geminiResponse.text) {
-                    const resData = JSON.parse(geminiResponse.text.trim());
-                    if (resData.price && resData.price > 0) {
-                      finalPrice = resData.price;
-                      syncNotes = `Sincronizado con IA para idioma ${itemLang}: ${resData.reasoning}`;
-                    }
-                  }
-                } catch (geminiErr) {
-                  console.warn("Failed to get Gemini price estimation for card sync without ID:", geminiErr);
-                }
-              }
-
-              if (finalPrice > 0 || tcgPrice > 0) {
-                const collectrPrice = await getCollectrPrice(card.name, card.set?.name || item.set, 'card');
-                updates.push({
-                  id: item.id,
-                  tcgplayerPrice: finalPrice || tcgPrice || 0.99,
-                  collectrPrice: collectrPrice,
-                  imageUrl: card.images?.large || card.images?.small || item.imageUrl,
-                  notes: syncNotes,
-                });
-              }
-            }
-          }
-          await new Promise((resolve) => setTimeout(resolve, 150));
-        } catch (err) {
-          console.error(`Error syncing withoutCardId for item ${item.id}:`, err);
-        }
-      }
-
-      // 3. Block for sealed products: Process sealed products using Gemini
-      const sealedItems = items.filter((item: any) => item.type === "sealed").slice(0, 15);
-      console.log(`Found ${sealedItems.length} sealed products to sync (Max 15).`);
-      
       const ai = getAiClient();
 
-      for (const item of sealedItems) {
-        let success = false;
-        const modelsToTry = ["gemini-flash-latest", "gemini-3.1-flash-lite", "gemini-3.5-flash"];
-        
-        for (const modelName of modelsToTry) {
-          try {
-            console.log(`Estimating price for sealed product "${item.name}" from set "${item.set}" using model "${modelName}"...`);
-            const response = await ai.models.generateContent({
-              model: modelName,
-              contents: {
-                parts: [
-                  {
-                    text: `Actúa como analista de mercado de productos sellados de Pokémon TCG.
-Estima el precio actual de mercado en USD para el siguiente producto sellado:
-Nombre: ${item.name}
-Expansión/Set: ${item.set}
+      for (const item of items) {
+        // Exit early if we are close to Vercel's 10s limit
+        if (Date.now() - startTime > 8000) {
+          console.warn("Sync limit reached, sending partial results");
+          break;
+        }
 
-Responde SOLO un JSON con la estructura { "price": number, "reasoning": string en español } donde "price" es el precio en USD y "reasoning" explica brevemente por qué.`,
-                  },
-                ],
-              },
+        try {
+          let tcgPrice = 0;
+          let notes = "";
+          let img = item.imageUrl;
+
+          if (item.type === 'card' && item.id && !item.id.startsWith('manual-') && item.id.includes('-')) {
+            const apiRes = await fetch(`https://api.pokemontcg.io/v2/cards/${item.id}`, { headers: { "User-Agent": "aistudio-build" } });
+            if (apiRes.ok) {
+              const data = (await apiRes.json()) as any;
+              if (data.data) {
+                tcgPrice = getBestPrice(data.data.tcgplayer);
+                img = data.data.images?.large || data.data.images?.small || img;
+                notes = "Sincronizado vía API oficial.";
+              }
+            }
+          }
+
+          if (tcgPrice === 0 || item.type === 'sealed') {
+            const response = await ai.models.generateContent({
+              model: "gemini-3.5-flash",
+              contents: { parts: [{ text: `Price for ${item.type} "${item.name} ${item.set}" (${item.language || 'Inglés'}). JSON: { "price": number, "reasoning": string }` }] },
               config: {
                 responseMimeType: "application/json",
                 responseSchema: {
                   type: Type.OBJECT,
-                  properties: {
-                    price: {
-                      type: Type.NUMBER,
-                      description: "The estimated current market price in USD.",
-                    },
-                    reasoning: {
-                      type: Type.STRING,
-                      description: "A brief reasoning in Spanish explaining the price estimation.",
-                    },
-                  },
-                  required: ["price", "reasoning"],
-                },
-              },
-            });
-
-            const responseText = response.text;
-            if (responseText) {
-              const parsedResult = JSON.parse(responseText.trim());
-              const precioEstimado = Number(parsedResult.price);
-              const reasoning = parsedResult.reasoning;
-
-              if (precioEstimado && precioEstimado > 0) {
-                const collectrPrice = await getCollectrPrice(item.name, item.set, 'sealed');
-                updates.push({
-                  id: item.id,
-                  tcgplayerPrice: precioEstimado,
-                  collectrPrice: collectrPrice,
-                  imageUrl: item.imageUrl,
-                  notes: "Sincronizado con IA: " + reasoning,
-                });
-                success = true;
-                break; // Proceed to the next sealed item
+                  properties: { price: { type: Type.NUMBER }, reasoning: { type: Type.STRING } },
+                  required: ["price", "reasoning"]
+                }
               }
+            });
+            if (response && response.text) {
+              const resData = JSON.parse(response.text.trim());
+              tcgPrice = resData.price;
+              notes = `Sincronizado vía IA: ${resData.reasoning}`;
             }
-          } catch (err) {
-            console.error(`Failed to sync sealed item "${item.name}" with model "${modelName}":`, err);
           }
-        }
 
-        // Add 400ms delay between estimations to avoid rate limit
-        await new Promise((resolve) => setTimeout(resolve, 400));
+          if (tcgPrice > 0) {
+            const colPrice = await getCollectrPrice(item.name, item.set, item.type || 'card');
+            updates.push({ id: item.id, tcgplayerPrice: tcgPrice, collectrPrice: colPrice, imageUrl: img, notes: notes, lastSync: new Date().toISOString() });
+          }
+        } catch (e) { console.error(`Error syncing ${item.id}`, e); }
       }
-
-      console.log(`Sincronización finalizada. Enviando ${updates.length} actualizaciones al cliente.`);
-      res.json({ updates });
-    } catch (error: any) {
-      console.error("Error in pokemon sync endpoint:", error);
-      res.status(500).json({ error: "Internal server error during price synchronization" });
+      res.json(updates);
+    } catch (error) {
+      console.error("Sync error:", error);
+      res.status(500).json({ error: "Sync failed" });
     }
   });
 
@@ -1126,6 +722,13 @@ async function startServer() {
   }
 }
 
-if (process.env.VERCEL !== "1") {
+// In Vercel, we don't call listen, but we still need to setup the app
+if (process.env.VERCEL === "1") {
+  // Setup standard production middlewares for Vercel
+  const distPath = path.join(process.cwd(), "dist");
+  app.use(express.static(distPath));
+  // Note: We don't need the SPA fallback here as vercel.json handles it,
+  // and we don't want it to swallow our API routes if misconfigured.
+} else {
   startServer();
 }

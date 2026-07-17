@@ -7,7 +7,7 @@ export interface CoInvestor {
   method?: PaymentMethod;
 }
 
-export type Category = 'CELULARES' | 'TABLETS' | 'RELOJ INTELIGENTES' | 'AURICULARES' | 'ACCESORIOS' | 'Other';
+export type Category = 'POKEMON' | 'CELULARES' | 'TABLETS' | 'RELOJ INTELIGENTES' | 'AURICULARES' | 'ACCESORIOS' | 'Other';
 
 export interface Product {
   id: string;

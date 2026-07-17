@@ -673,6 +673,27 @@ export default function PokemonTCG() {
       };
 
       await setDoc(docRef, payload);
+
+      // ALSO sync with the main 'products' collection
+      try {
+        const productRef = doc(db, 'products', id);
+        await setDoc(productRef, {
+          id,
+          name: payload.name,
+          category: 'POKEMON',
+          purchasePrice: payload.investedPrice || 0,
+          salePrice: payload.tcgplayerPrice || 0,
+          status: 'stock',
+          quantity: 1,
+          purchaseDate: payload.dateAdded,
+          investor: 'Duvan',
+          description: `${payload.set} - ${payload.cardNumber} (${payload.condition})`,
+          images: payload.imageUrl ? [payload.imageUrl] : []
+        }, { merge: true });
+      } catch (syncErr) {
+        console.error("Failed to sync with main products collection:", syncErr);
+      }
+
       setQuickAddedIds(prev => ({ ...prev, [scanId]: true }));
     } catch (err) {
       console.error("Failed to quick add scanned item:", err);
@@ -709,11 +730,22 @@ export default function PokemonTCG() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to scan image");
+        let errorMsg = "Fallo en el análisis de imagen";
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.error || errorMsg;
+        } catch (e) {
+          errorMsg = `Error del servidor (${response.status}): ${response.statusText || 'Error al procesar la imagen'}`;
+        }
+        throw new Error(errorMsg);
       }
 
-      const result = await response.json();
+      let result;
+      try {
+        result = await response.json();
+      } catch (e) {
+        throw new Error("Error al procesar la respuesta del servidor.");
+      }
       const priceVal = result.tcgplayerPrice || 0;
       setOriginalEnglishPrice(priceVal);
 
@@ -781,11 +813,23 @@ export default function PokemonTCG() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to search item");
+        let errorMsg = "Failed to search item";
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.error || errorMsg;
+        } catch (e) {
+          // If response is not JSON (e.g. Vercel timeout HTML), use status text
+          errorMsg = `Error del servidor (${response.status}): ${response.statusText || 'Tiempo de espera agotado o error interno'}`;
+        }
+        throw new Error(errorMsg);
       }
 
-      const result = await response.json();
+      let result;
+      try {
+        result = await response.json();
+      } catch (e) {
+        throw new Error("El servidor devolvió una respuesta inválida. Por favor intenta de nuevo en unos segundos.");
+      }
       const priceVal = result.tcgplayerPrice || 0;
       setOriginalEnglishPrice(priceVal);
 
@@ -866,6 +910,27 @@ export default function PokemonTCG() {
       };
 
       await setDoc(docRef, payload, { merge: true });
+
+      // ALSO sync with the main 'products' collection for global dashboard visibility
+      try {
+        const productRef = doc(db, 'products', id);
+        await setDoc(productRef, {
+          id,
+          name: payload.name,
+          category: 'POKEMON',
+          purchasePrice: payload.investedPrice || 0,
+          salePrice: payload.tcgplayerPrice || 0,
+          status: payload.quantity > 0 ? 'stock' : 'out_of_stock',
+          quantity: payload.quantity,
+          purchaseDate: payload.dateAdded || new Date().toISOString().split('T')[0],
+          investor: 'Duvan', // Default investor for Pokemon items
+          description: `${payload.set} - ${payload.cardNumber} (${payload.condition}) - ${payload.notes}`,
+          images: payload.imageUrl ? [payload.imageUrl] : []
+        }, { merge: true });
+      } catch (syncErr) {
+        console.error("Failed to sync with main products collection:", syncErr);
+      }
+
       setIsResultOpen(false);
       setScanPreview(null);
       // Reset editing item
