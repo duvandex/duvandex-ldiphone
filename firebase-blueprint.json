@@ -1,0 +1,194 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "Represents a physical product or a sale entry",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "imei": { "type": "string" },
+        "provider": { "type": "string" },
+        "investor": { "type": "string", "enum": ["Duvan", "Lina", "Santiago", "Johana", "Pool", "Santa Maria", "Thomas"] },
+        "purchaseDate": { "type": "string" },
+        "purchasePrice": { "type": "number" },
+        "salePrice": { "type": "number" },
+        "status": { "type": "string", "enum": ["stock", "sold", "out_of_stock"] },
+        "saleDate": { "type": "string" },
+        "buyer": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "quantity": { "type": "number" },
+        "initialQuantity": { "type": "number" },
+        "images": { "type": "array", "items": { "type": "string" } },
+        "purchaseMethod": { "type": "string" },
+        "saleMethod": { "type": "string" },
+        "warrantyMonths": { "type": "number" },
+        "warrantyExpiration": { "type": "string" },
+        "updatedAt": { "type": "string", "description": "Timestamp for sync" }
+      },
+      "required": ["name", "investor", "purchasePrice", "status", "quantity"]
+    },
+    "FinancialAccount": {
+      "title": "Financial Account",
+      "description": "Represents an investor's account balance for a specific payment method",
+      "type": "object",
+      "properties": {
+        "method": { "type": "string" },
+        "name": { "type": "string" },
+        "balance": { "type": "number" },
+        "investor": { "type": "string" }
+      },
+      "required": ["method", "name", "balance", "investor"]
+    },
+    "Expense": {
+      "title": "Expense",
+      "description": "Tracks business expenses",
+      "type": "object",
+      "properties": {
+        "description": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string" },
+        "method": { "type": "string" },
+        "category": { "type": "string" },
+        "investor": { "type": "string" }
+      },
+      "required": ["description", "amount", "date", "method", "category", "investor"]
+    },
+    "Debtor": {
+      "title": "Debtor",
+      "description": "People who owe money to the business",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "payments": { "type": "array", "items": { "type": "number" } },
+        "status": { "type": "string", "enum": ["pending", "paid"] }
+      },
+      "required": ["name", "totalAmount", "status"]
+    },
+    "Liability": {
+      "title": "Liability",
+      "description": "Money the business owes to others",
+      "type": "object",
+      "properties": {
+        "creditor": { "type": "string" },
+        "description": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "payments": { "type": "array", "items": { "type": "number" } },
+        "status": { "type": "string", "enum": ["pending", "paid"] }
+      },
+      "required": ["creditor", "totalAmount", "status"]
+    },
+    "CryptoTransaction": {
+      "title": "Crypto Transaction",
+      "description": "Represents a purchase of BTC or ETH",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "cryptocurrency": { "type": "string", "enum": ["BTC", "ETH", "USDT"] },
+        "quantity": { "type": "number" },
+        "purchasePriceUsd": { "type": "number" },
+        "purchasePriceCop": { "type": "number" },
+        "date": { "type": "string" },
+        "investor": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["cryptocurrency", "quantity", "purchasePriceUsd", "date", "investor"]
+    },
+    "CryptoFuture": {
+      "title": "Crypto Future",
+      "description": "Represents a crypto futures position",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "cryptocurrency": { "type": "string" },
+        "type": { "type": "string", "enum": ["LONG", "SHORT"] },
+        "leverage": { "type": "number" },
+        "entryPrice": { "type": "number" },
+        "marginUsd": { "type": "number" },
+        "quantity": { "type": "number" },
+        "date": { "type": "string" },
+        "investor": { "type": "string" },
+        "status": { "type": "string", "enum": ["OPEN", "CLOSED"] },
+        "exitPrice": { "type": "number" },
+        "notes": { "type": "string" }
+      },
+      "required": ["cryptocurrency", "type", "leverage", "entryPrice", "marginUsd", "quantity", "date", "investor", "status"]
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "Application wide settings like invoice counter and payment methods",
+      "type": "object",
+      "properties": {
+        "invoiceCounter": { "type": "number" },
+        "companyName": { "type": "string" },
+        "companyLogo": { "type": "string" },
+        "warrantyTerms": { "type": "string" },
+        "defaultWarrantyMonths": { "type": "number" },
+        "paymentMethods": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["invoiceCounter"]
+    },
+    "PokemonItem": {
+      "title": "PokemonItem",
+      "description": "Represents a Pokemon TCG card or sealed product in the inventory",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["card", "sealed"] },
+        "name": { "type": "string" },
+        "set": { "type": "string" },
+        "cardNumber": { "type": "string" },
+        "rarity": { "type": "string" },
+        "tcgplayerPrice": { "type": "number" },
+        "collectrPrice": { "type": "number" },
+        "investedPrice": { "type": "number" },
+        "imageUrl": { "type": "string" },
+        "quantity": { "type": "number" },
+        "condition": { "type": "string" },
+        "notes": { "type": "string" },
+        "dateAdded": { "type": "string" },
+        "language": { "type": "string" }
+      },
+      "required": ["name", "type", "tcgplayerPrice", "quantity", "condition", "dateAdded"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": "Product",
+      "description": "Collection of all products and sales"
+    },
+    "/accounts/{accountId}": {
+      "schema": "FinancialAccount",
+      "description": "Balances for each investor per payment method"
+    },
+    "/expenses/{expenseId}": {
+      "schema": "Expense",
+      "description": "Tracked expenses"
+    },
+    "/debtors/{debtorId}": {
+      "schema": "Debtor",
+      "description": "List of debtors"
+    },
+    "/liabilities/{liabilityId}": {
+      "schema": "Liability",
+      "description": "List of liabilities"
+    },
+    "/crypto_transactions/{transactionId}": {
+      "schema": "CryptoTransaction",
+      "description": "BTC and ETH purchase transactions"
+    },
+    "/crypto_futures/{futureId}": {
+      "schema": "CryptoFuture",
+      "description": "Cryptocurrency futures contracts positions"
+    },
+    "/app_settings/global": {
+      "schema": "Settings",
+      "description": "Global settings for the application"
+    },
+    "/pokemon_inventory/{itemId}": {
+      "schema": "PokemonItem",
+      "description": "Inventory of Pokemon TCG cards and products"
+    }
+  }
+}

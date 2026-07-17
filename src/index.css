@@ -1,0 +1,279 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+    --font-heading: var(--font-sans);
+    --font-sans: 'Geist Variable', 'Inter', sans-serif;
+    
+    --radius-sm: 0.5rem;
+    --radius-md: 0.75rem;
+    --radius-lg: 1rem;
+    --radius-xl: 1.5rem;
+    --radius-2xl: 2rem;
+    
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+
+    --shadow-premium: 0 10px 30px -10px rgba(0, 0, 0, 0.05);
+}
+
+:root {
+    --background: oklch(0.99 0 0);
+    --foreground: oklch(0.15 0 0);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.15 0 0);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.15 0 0);
+    --primary: oklch(0.25 0.02 260);
+    --primary-foreground: oklch(0.99 0 0);
+    --secondary: oklch(0.96 0 0);
+    --secondary-foreground: oklch(0.25 0 0);
+    --muted: oklch(0.97 0 0);
+    --muted-foreground: oklch(0.45 0 0);
+    --accent: oklch(0.96 0 0);
+    --accent-foreground: oklch(0.25 0 0);
+    --destructive: oklch(0.6 0.2 25);
+    --border: oklch(0.94 0 0);
+    --input: oklch(0.94 0 0);
+    --ring: oklch(0.25 0.02 260 / 20%);
+    --radius: 1rem;
+}
+
+.dark {
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.205 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --popover: oklch(0.205 0 0);
+    --popover-foreground: oklch(0.985 0 0);
+    --primary: oklch(0.922 0 0);
+    --primary-foreground: oklch(0.205 0 0);
+    --secondary: oklch(0.269 0 0);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    --accent: oklch(0.269 0 0);
+    --accent-foreground: oklch(0.985 0 0);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.556 0 0);
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --sidebar: oklch(0.205 0 0);
+    --sidebar-foreground: oklch(0.985 0 0);
+    --sidebar-primary: oklch(0.488 0.243 264.376);
+    --sidebar-primary-foreground: oklch(0.985 0 0);
+    --sidebar-accent: oklch(0.269 0 0);
+    --sidebar-accent-foreground: oklch(0.985 0 0);
+    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-none transition-all duration-200;
+  }
+  body {
+    @apply bg-background text-foreground selection:bg-primary/10 selection:text-primary min-h-screen font-sans;
+    background-image: 
+        radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.05) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.05) 0px, transparent 50%);
+  }
+  
+  .dark body {
+    background-image: 
+        radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.1) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.1) 0px, transparent 50%);
+  }
+}
+
+@layer components {
+    .glass {
+        @apply bg-background/70 backdrop-blur-md border border-white/10 dark:border-white/5;
+    }
+    
+    .card-premium {
+        @apply bg-card border border-border shadow-sm hover:shadow-lg dark:hover:shadow-primary/5 hover:-translate-y-0.5 transition-all duration-300;
+    }
+}
+
+/* Print optimization styles for compact single page invoices */
+@media print {
+  @page {
+    size: letter;
+    margin: 4mm 6mm !important;
+  }
+  
+  html, body {
+    background: #fff !important;
+    color: #000 !important;
+    min-height: auto !important;
+    height: auto !important;
+  }
+
+  .print\:hidden {
+    display: none !important;
+  }
+
+  .print\:shadow-none {
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}
+
+/* Custom PDF rendering styles to ensure absolute one-page layout */
+.pdf-rendering {
+  width: 790px !important;
+  max-width: 790px !important;
+  background: white !important;
+  color: black !important;
+  padding: 10px 14px !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+  border: none !important;
+  page-break-inside: avoid !important;
+  break-inside: avoid !important;
+}
+
+.pdf-rendering * {
+  /* Scale down spacing inside pdf mode */
+  border-color: #f1f5f9 !important;
+}
+
+.pdf-rendering .p-8 {
+  padding: 10px 12px !important;
+}
+
+.pdf-rendering .space-y-8 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 6px !important;
+  margin-bottom: 6px !important;
+}
+.pdf-rendering .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 4px !important;
+  margin-bottom: 4px !important;
+}
+.pdf-rendering .space-y-4 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 4px !important;
+  margin-bottom: 4px !important;
+}
+.pdf-rendering .space-y-3 > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 3px !important;
+  margin-bottom: 3px !important;
+}
+.pdf-rendering .p-5 {
+  padding: 8px 10px !important;
+}
+.pdf-rendering .p-4 {
+  padding: 6px 8px !important;
+}
+.pdf-rendering svg {
+  max-height: 80px !important;
+  max-width: 80px !important;
+}
+.pdf-rendering hr {
+  margin-top: 4px !important;
+  margin-bottom: 4px !important;
+}
+.pdf-rendering .text-2xl {
+  font-size: 1.25rem !important;
+}
+.pdf-rendering .text-sm {
+  font-size: 0.775rem !important;
+}
+.pdf-rendering .text-xs {
+  font-size: 0.7rem !important;
+}
+.pdf-rendering .text-\[9px\] {
+  font-size: 7px !important;
+}
+.pdf-rendering .text-\[10px\] {
+  font-size: 8px !important;
+}
+
+/* Pokemon TCG Shimmer and Holo effects */
+.pokemon-holo-card {
+  position: relative;
+  overflow: hidden;
+}
+.pokemon-holo-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    125deg,
+    transparent 0%,
+    transparent 35%,
+    rgba(255, 255, 255, 0.15) 43%,
+    rgba(255, 255, 255, 0.35) 48%,
+    rgba(255, 255, 255, 0.5) 50%,
+    rgba(255, 255, 255, 0.35) 52%,
+    rgba(255, 255, 255, 0.15) 57%,
+    transparent 65%,
+    transparent 100%
+  );
+  background-size: 300% 300%;
+  background-position: 200% 0%;
+  transition: background-position 0.6s ease;
+  pointer-events: none;
+  z-index: 5;
+}
+.pokemon-holo-card:hover::after {
+  background-position: -100% 0%;
+}
+
+.pokemon-gold-glow {
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.15);
+  border-color: rgba(245, 158, 11, 0.35);
+}
+.pokemon-gold-glow:hover {
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.35);
+  border-color: rgba(245, 158, 11, 0.6);
+}
+
+.pokemon-ultra-glow {
+  box-shadow: 0 0 8px rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.35);
+}
+.pokemon-ultra-glow:hover {
+  box-shadow: 0 0 16px rgba(139, 92, 246, 0.35);
+  border-color: rgba(139, 92, 246, 0.6);
+}
+
+.pokemon-holo-glow {
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+.pokemon-holo-glow:hover {
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.25);
+  border-color: rgba(59, 130, 246, 0.5);
+}
+

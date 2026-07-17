@@ -1,0 +1,6 @@
+{
+  "name": "LDIPHONE Sales & Inventory",
+  "description": "Sistema profesional de gestión de ventas, inventario e inversores con facturación QR.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

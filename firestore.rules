@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'duvanmarinj@gmail.com' ||
+        request.auth.uid == 'AUzaLFNAVkcfmH482LbpfofYYc33'
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    match /products/{productId} {
+      allow read: if true;
+      allow create: if isAdmin() && isValidId(productId);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /accounts/{accountId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /expenses/{expenseId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /debtors/{debtorId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /liabilities/{liabilityId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /crypto_transactions/{transactionId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /crypto_futures/{futureId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /app_settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /pokemon_inventory/{itemId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+  }
+}
