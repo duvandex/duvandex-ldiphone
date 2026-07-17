@@ -164,6 +164,7 @@ export default function Inventory() {
   const [search, setSearch] = useState('');
   const [investorFilter, setInvestorFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<Category | 'all'>('all');
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isSellOpen, setIsSellOpen] = useState(false);
   const [isReserveOpen, setIsReserveOpen] = useState(false);
@@ -463,10 +464,12 @@ export default function Inventory() {
                              (p.investor === investorFilter) || 
                              (p.coInvestors?.some(c => c.investor === investorFilter));
       
+      const matchesCategory = categoryFilter === 'all' || p.category === categoryFilter;
+      
       const matchesStatus = statusFilter === 'all' || p.status === statusFilter || (!p.status && statusFilter === 'stock');
-      return matchesSearch && matchesInvestor && matchesStatus;
+      return matchesSearch && matchesInvestor && matchesCategory && matchesStatus;
     });
-  }, [data.products, search, investorFilter, statusFilter]);
+  }, [data.products, search, investorFilter, categoryFilter, statusFilter]);
 
   const sortedProducts = React.useMemo(() => {
     return [...filteredProducts].sort((a, b) => {
@@ -774,7 +777,9 @@ export default function Inventory() {
                               p.investor === investorFilter || 
                               p.coInvestors?.some(c => c.investor === investorFilter);
       
-      if (!hasInvestorMatch) return;
+      const hasCategoryMatch = categoryFilter === 'all' || p.category === categoryFilter;
+      
+      if (!hasInvestorMatch || !hasCategoryMatch) return;
 
       matchingCount++;
       if (investorFilter !== 'all') {
@@ -797,7 +802,7 @@ export default function Inventory() {
       cost: totalCost,
       profit: totalEstSale - totalCost
     };
-  }, [data.products, investorFilter]);
+  }, [data.products, investorFilter, categoryFilter]);
 
   const filteredTotals = React.useMemo(() => {
     let totalCost = 0;
@@ -876,13 +881,13 @@ export default function Inventory() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-4 flex-1">
             <Select value={investorFilter} onValueChange={setInvestorFilter}>
-              <SelectTrigger className="flex-1 lg:w-[180px] bg-card border-none shadow-sm h-12 rounded-2xl font-bold text-xs uppercase tracking-widest px-4">
+              <SelectTrigger className="flex-1 lg:min-w-[140px] bg-card border-none shadow-sm h-12 rounded-2xl font-bold text-xs uppercase tracking-widest px-4">
                 <SelectValue placeholder="Inversor" />
               </SelectTrigger>
               <SelectContent className="rounded-2xl border-border">
-                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="all">Inversor: Todos</SelectItem>
                 <SelectItem value="Duvan">Duvan</SelectItem>
                 <SelectItem value="Lina">Lina</SelectItem>
                 <SelectItem value="Santiago">Santiago</SelectItem>
@@ -892,12 +897,29 @@ export default function Inventory() {
                 <SelectItem value="Thomas">Thomas</SelectItem>
               </SelectContent>
             </Select>
+            
+            <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v as any)}>
+              <SelectTrigger className="flex-1 lg:min-w-[140px] bg-card border-none shadow-sm h-12 rounded-2xl font-bold text-xs uppercase tracking-widest px-4">
+                <SelectValue placeholder="Categoría" />
+              </SelectTrigger>
+              <SelectContent className="rounded-2xl border-border">
+                <SelectItem value="all">Categoría: Todas</SelectItem>
+                <SelectItem value="POKEMON TCG">POKEMON TCG</SelectItem>
+                <SelectItem value="CELULARES">CELULARES</SelectItem>
+                <SelectItem value="TABLETS">TABLETS</SelectItem>
+                <SelectItem value="RELOJ INTELIGENTES">RELOJ INTELIGENTES</SelectItem>
+                <SelectItem value="AURICULARES">AURICULARES</SelectItem>
+                <SelectItem value="ACCESORIOS">ACCESORIOS</SelectItem>
+                <SelectItem value="Other">Otro</SelectItem>
+              </SelectContent>
+            </Select>
+
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="flex-1 lg:w-[160px] bg-white border-none shadow-sm h-12 rounded-2xl font-bold text-xs uppercase tracking-widest px-4">
+              <SelectTrigger className="flex-1 lg:min-w-[140px] bg-white border-none shadow-sm h-12 rounded-2xl font-bold text-xs uppercase tracking-widest px-4">
                 <SelectValue placeholder="Estado" />
               </SelectTrigger>
               <SelectContent className="rounded-2xl border-slate-100">
-                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="all">Estado: Todos</SelectItem>
                 <SelectItem value="stock">En Stock</SelectItem>
                 <SelectItem value="reserved">Separados</SelectItem>
                 <SelectItem value="out_of_stock">Agotado</SelectItem>
@@ -1458,7 +1480,12 @@ export default function Inventory() {
                             fmt(p.purchasePrice)
                           )}
                         </div>
-                        {p.quantity > 1 && <div className="text-[7px] text-slate-400 font-bold uppercase leading-none mt-0.5">Costo Unid</div>}
+                        {(p.quantity || 1) > 1 && (
+                          <div className="text-[8px] text-slate-500 font-black leading-none mt-1 border-t border-slate-100 pt-1">
+                            Total: {fmt(p.purchasePrice * (p.quantity || 1))}
+                          </div>
+                        )}
+                        {(p.quantity || 1) > 1 && <div className="text-[7px] text-slate-400 font-bold uppercase leading-none mt-0.5">Costo Unid</div>}
                       </TableCell>
                       <TableCell className="py-1.5 text-right font-mono">
                         <div className="text-xs font-extrabold text-emerald-700 leading-tight">
@@ -1718,6 +1745,11 @@ export default function Inventory() {
                           </>
                         ) : fmt(p.purchasePrice)}
                       </div>
+                      {(p.quantity || 1) > 1 && (
+                        <div className="text-[9px] font-black text-slate-500 pt-1 mt-1 border-t border-slate-200/50">
+                          Total: {fmt(p.purchasePrice * (p.quantity || 1))}
+                        </div>
+                      )}
                     </div>
                     <div className="space-y-1 p-3 bg-emerald-50/50 rounded-2xl border border-emerald-100/30">
                       <div className="text-[9px] font-black uppercase tracking-widest text-emerald-600">P. Venta</div>
