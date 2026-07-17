@@ -166,12 +166,11 @@ function parseCollectrResponse(data: any, targetName: string, type: 'card' | 'se
   return null;
 }
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+export default app;
 
-  // Set payload limits for base64 image transfers
-  app.use(express.json({ limit: "25mb" }));
+// Set payload limits for base64 image transfers
+app.use(express.json({ limit: "25mb" }));
 
   // API Route for scanning/identifying Pokemon TCG items
   app.post("/api/pokemon/scan", async (req, res) => {
@@ -589,10 +588,21 @@ Your tasks:
         const q = buildTcgplayerQuery(query);
         const url = `https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(q)}&pageSize=5`;
         
+        const tcgApiKey = process.env.POKEMON_TCG_API_KEY;
+        const headers: any = { "User-Agent": "aistudio-build" };
+        if (tcgApiKey) {
+          headers["X-Api-Key"] = tcgApiKey;
+        }
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
         console.log(`Searching official Pokemon TCG API for card query "${query}":`, url);
         const officialRes = await fetch(url, {
-          headers: { "User-Agent": "aistudio-build" }
+          headers,
+          signal: controller.signal
         });
+        clearTimeout(timeoutId);
 
         if (officialRes.ok) {
           const officialData = await officialRes.json() as any;
@@ -1091,6 +1101,9 @@ Responde SOLO un JSON con la estructura { "price": number, "reasoning": string e
       res.status(500).json({ error: "Internal server error during price synchronization" });
     }
   });
+
+async function startServer() {
+  const PORT = 3000;
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -1105,9 +1118,14 @@ Responde SOLO un JSON con la estructura { "price": number, "reasoning": string e
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on port ${PORT}`);
-  });
+  // Bind to port for local/Cloud Run environments
+  if (process.env.VERCEL !== "1") {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  }
 }
 
-startServer();
+if (process.env.VERCEL !== "1") {
+  startServer();
+}
