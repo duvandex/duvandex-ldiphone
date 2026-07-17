@@ -202,8 +202,8 @@ export default function WarrantyPage() {
         {product.images && product.images.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {product.images.map((img, i) => (
-              <div key={i} className="aspect-square rounded-xl overflow-hidden bg-card shadow-sm border border-border p-1">
-                <img src={img} className="w-full h-full object-cover rounded-lg" alt={`Product ${i}`} />
+              <div key={i} className="aspect-square rounded-xl overflow-hidden bg-white shadow-sm border border-border p-1 flex items-center justify-center">
+                <img src={img} className="w-full h-full object-contain rounded-lg" alt={`Product ${i}`} />
               </div>
             ))}
           </div>

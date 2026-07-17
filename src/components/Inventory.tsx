@@ -66,10 +66,10 @@ const ImageUploader = ({
       <div className="grid grid-cols-4 gap-2">
         {images.map((img, i) => (
           <div key={i} className={cn(
-            "relative group aspect-square rounded-lg overflow-hidden bg-muted border transition-all",
+            "relative group aspect-square rounded-lg overflow-hidden bg-white border transition-all",
             i === 0 ? "border-primary ring-2 ring-primary/20" : "border-border"
           )}>
-            <img src={img} className="w-full h-full object-cover" alt="preview" />
+            <img src={img} className="w-full h-full object-contain" alt="preview" />
             
             {/* Main Label */}
             {i === 0 && (
@@ -657,12 +657,15 @@ export default function Inventory() {
     }
     
     try {
+      const isPokemon = selectedProduct.category === 'POKEMON TCG';
       await updateProduct(selectedProduct.id, {
         ...sellData,
         salePrice: finalPrice,
         sellQuantity: sQty,
         status: 'sold',
-        warrantyTerms: data.settings.warrantyTerms,
+        warrantyMonths: isPokemon ? 0 : sellData.warrantyMonths,
+        warrantyExpiration: isPokemon ? '' : sellData.warrantyExpiration,
+        warrantyTerms: isPokemon ? 'Sin garantía por categoría Pokemon TCG' : data.settings.warrantyTerms,
       });
       setIsSellOpen(false);
       setSelectedProduct(null);
@@ -971,7 +974,7 @@ export default function Inventory() {
                   <Select value={newProduct.category} onValueChange={v => setNewProduct({...newProduct, category: v as Category})}>
                     <SelectTrigger className="rounded-xl border-slate-100 h-11 font-bold text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent className="rounded-2xl border-slate-100">
-                      <SelectItem value="POKEMON">POKEMON</SelectItem>
+                      <SelectItem value="POKEMON TCG">POKEMON TCG</SelectItem>
                       <SelectItem value="CELULARES">CELULARES</SelectItem>
                       <SelectItem value="TABLETS">TABLETS</SelectItem>
                       <SelectItem value="RELOJ INTELIGENTES">RELOJ INTELIGENTES</SelectItem>
@@ -1232,11 +1235,27 @@ export default function Inventory() {
               <div className="grid grid-cols-2 gap-4 border-t border-slate-50 pt-4">
                 <div className="grid gap-2">
                   <Label htmlFor="warranty" className="text-[10px] font-black uppercase tracking-widest text-slate-400">Garantía (Meses)</Label>
-                  <Input id="warranty" type="number" min="0" placeholder="0" className="rounded-xl border-slate-100 h-11" value={newProduct.warrantyMonths} onChange={e => setNewProduct({...newProduct, warrantyMonths: parseInt(e.target.value) || 0})} />
+                  <Input 
+                    id="warranty" 
+                    type="number" 
+                    min="0" 
+                    placeholder="0" 
+                    className="rounded-xl border-slate-100 h-11" 
+                    value={newProduct.category === 'POKEMON TCG' ? 0 : newProduct.warrantyMonths} 
+                    disabled={newProduct.category === 'POKEMON TCG'}
+                    onChange={e => setNewProduct({...newProduct, warrantyMonths: parseInt(e.target.value) || 0})} 
+                  />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="w-exp" className="text-[10px] font-black uppercase tracking-widest text-slate-400">Vencimiento</Label>
-                  <Input id="w-exp" type="date" className="rounded-xl border-slate-100 h-11" value={newProduct.warrantyExpiration} onChange={e => setNewProduct({...newProduct, warrantyExpiration: e.target.value})} />
+                  <Input 
+                    id="w-exp" 
+                    type="date" 
+                    className="rounded-xl border-slate-100 h-11" 
+                    value={newProduct.category === 'POKEMON TCG' ? '' : newProduct.warrantyExpiration} 
+                    disabled={newProduct.category === 'POKEMON TCG'}
+                    onChange={e => setNewProduct({...newProduct, warrantyExpiration: e.target.value})} 
+                  />
                 </div>
               </div>
 
@@ -1346,7 +1365,7 @@ export default function Inventory() {
                         <div className="flex items-center gap-2">
                           <div 
                             className={cn(
-                              "w-10 h-10 rounded-xl overflow-hidden bg-muted flex items-center justify-center shrink-0 border border-card shadow-sm transition-transform group-hover:scale-105 duration-300",
+                              "w-10 h-10 rounded-xl overflow-hidden bg-white flex items-center justify-center shrink-0 border border-card shadow-sm transition-transform group-hover:scale-105 duration-300",
                               p.images && p.images.length > 0 ? "cursor-zoom-in" : ""
                             )}
                             onClick={(e) => {
@@ -1361,7 +1380,7 @@ export default function Inventory() {
                             }}
                           >
                             {p.images && p.images.length > 0 ? (
-                              <img src={p.images[0]} className="w-full h-full object-cover" alt={p.name} />
+                              <img src={p.images[0]} className="w-full h-full object-contain" alt={p.name} />
                             ) : (
                               <div className="text-muted-foreground bg-card w-full h-full flex items-center justify-center">
                                  <Smartphone className="w-4 h-4 opacity-30" />
@@ -1614,7 +1633,7 @@ export default function Inventory() {
               <div className="flex flex-col">
                 <div 
                   className={cn(
-                    "relative aspect-video bg-muted flex items-center justify-center overflow-hidden",
+                    "relative aspect-video bg-white flex items-center justify-center overflow-hidden",
                     p.images && p.images.length > 0 ? "cursor-zoom-in group-hover:opacity-95 transition-opacity" : ""
                   )}
                   onClick={() => {
@@ -1628,7 +1647,7 @@ export default function Inventory() {
                   }}
                 >
                   {p.images && p.images.length > 0 ? (
-                    <img src={p.images[0]} className="w-full h-full object-contain bg-slate-100 dark:bg-slate-950/40" alt={p.name} />
+                    <img src={p.images[0]} className="w-full h-full object-contain" alt={p.name} />
                   ) : (
                     <Smartphone className="w-12 h-12 text-muted-foreground/30" />
                   )}
@@ -1943,7 +1962,7 @@ export default function Inventory() {
                 <Select value={editProductState?.category || 'CELULARES'} onValueChange={v => setEditProductState(prev => prev ? ({...prev, category: v as Category}) : null)}>
                   <SelectTrigger className="rounded-xl border-slate-100 h-11 font-bold text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent className="rounded-2xl border-slate-100">
-                    <SelectItem value="POKEMON">POKEMON</SelectItem>
+                    <SelectItem value="POKEMON TCG">POKEMON TCG</SelectItem>
                     <SelectItem value="CELULARES">CELULARES</SelectItem>
                     <SelectItem value="TABLETS">TABLETS</SelectItem>
                     <SelectItem value="RELOJ INTELIGENTES">RELOJ INTELIGENTES</SelectItem>
@@ -2098,11 +2117,26 @@ export default function Inventory() {
             <div className="grid grid-cols-2 gap-4 border-t border-slate-50 pt-4">
               <div className="grid gap-2">
                 <Label htmlFor="e-warranty" className="text-[10px] font-black uppercase tracking-widest text-slate-400">Garantía (Meses)</Label>
-                <Input id="e-warranty" type="number" min="0" className="rounded-xl border-slate-100 h-11" value={editProductState?.warrantyMonths || 0} onChange={e => setEditProductState(prev => prev ? ({...prev, warrantyMonths: parseInt(e.target.value) || 0}) : null)} />
+                <Input 
+                  id="e-warranty" 
+                  type="number" 
+                  min="0" 
+                  className="rounded-xl border-slate-100 h-11" 
+                  value={editProductState?.category === 'POKEMON TCG' ? 0 : (editProductState?.warrantyMonths || 0)} 
+                  disabled={editProductState?.category === 'POKEMON TCG'}
+                  onChange={e => setEditProductState(prev => prev ? ({...prev, warrantyMonths: parseInt(e.target.value) || 0}) : null)} 
+                />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="e-w-exp" className="text-[10px] font-black uppercase tracking-widest text-slate-400">Vencimiento</Label>
-                <Input id="e-w-exp" type="date" className="rounded-xl border-slate-100 h-11" value={editProductState?.warrantyExpiration || ''} onChange={e => setEditProductState(prev => prev ? ({...prev, warrantyExpiration: e.target.value}) : null)} />
+                <Input 
+                  id="e-w-exp" 
+                  type="date" 
+                  className="rounded-xl border-slate-100 h-11" 
+                  value={editProductState?.category === 'POKEMON TCG' ? '' : (editProductState?.warrantyExpiration || '')} 
+                  disabled={editProductState?.category === 'POKEMON TCG'}
+                  onChange={e => setEditProductState(prev => prev ? ({...prev, warrantyExpiration: e.target.value}) : null)} 
+                />
               </div>
             </div>
             
@@ -2475,9 +2509,9 @@ export default function Inventory() {
             </DialogHeader>
           <div className="grid gap-6">
             <div className="flex items-center gap-4 bg-muted p-4 rounded-2xl border border-border">
-               <div className="w-12 h-12 rounded-xl overflow-hidden bg-card shrink-0 border border-border">
+               <div className="w-12 h-12 rounded-xl overflow-hidden bg-white shrink-0 border border-border">
                   {selectedProduct?.images?.[0] ? (
-                    <img src={selectedProduct.images[0]} className="w-full h-full object-cover" alt={selectedProduct.name} />
+                    <img src={selectedProduct.images[0]} className="w-full h-full object-contain" alt={selectedProduct.name} />
                   ) : <Smartphone className="w-full h-full p-3 text-muted-foreground/30" />}
                </div>
                <div className="min-w-0">
@@ -2575,7 +2609,8 @@ export default function Inventory() {
                   type="number" 
                   min="0" 
                   className="rounded-xl border-slate-100 h-11"
-                  value={sellData.warrantyMonths} 
+                  value={selectedProduct?.category === 'POKEMON TCG' ? 0 : sellData.warrantyMonths} 
+                  disabled={selectedProduct?.category === 'POKEMON TCG'}
                   onChange={e => setSellData({...sellData, warrantyMonths: parseInt(e.target.value) || 0})} 
                 />
               </div>
@@ -2584,7 +2619,7 @@ export default function Inventory() {
                 <Input 
                   type="date" 
                   className="rounded-xl border-slate-100 h-11 bg-slate-50"
-                  value={sellData.warrantyExpiration} 
+                  value={selectedProduct?.category === 'POKEMON TCG' ? '' : sellData.warrantyExpiration} 
                   readOnly
                 />
               </div>

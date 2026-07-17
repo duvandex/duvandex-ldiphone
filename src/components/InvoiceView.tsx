@@ -675,21 +675,23 @@ export default function InvoiceView({ isPublic = false }: { isPublic?: boolean }
               </div>
 
               {/* Warranty Box */}
-              <div className="bg-secondary text-secondary-foreground rounded-xl p-5 space-y-3">
-                <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-widest">
-                  <ShieldCheck className="w-4 h-4" />
-                  Garantía y Condiciones
-                </div>
-                <div className="space-y-3">
-                  <div className="text-[10px] font-black bg-foreground/10 w-fit px-3 py-1 rounded-full text-foreground uppercase tracking-widest print:bg-black/10 print:text-black">
-                    Vigencia: {mainProduct.warrantyMonths || data.settings.defaultWarrantyMonths} Meses 
-                    {mainProduct.warrantyExpiration && ` (Hasta: ${mainProduct.warrantyExpiration})`}
+              {mainProduct.category !== 'POKEMON TCG' && (
+                <div className="bg-secondary text-secondary-foreground rounded-xl p-5 space-y-3">
+                  <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs uppercase tracking-widest">
+                    <ShieldCheck className="w-4 h-4" />
+                    Garantía y Condiciones
                   </div>
-                  <div className="text-[9px] text-muted-foreground leading-relaxed whitespace-pre-wrap font-medium border-l-2 border-emerald-500/30 pl-3">
-                    {mainProduct.warrantyTerms || data.settings.warrantyTerms}
+                  <div className="space-y-3">
+                    <div className="text-[10px] font-black bg-foreground/10 w-fit px-3 py-1 rounded-full text-foreground uppercase tracking-widest print:bg-black/10 print:text-black">
+                      Vigencia: {mainProduct.warrantyMonths || data.settings.defaultWarrantyMonths} Meses 
+                      {mainProduct.warrantyExpiration && ` (Hasta: ${mainProduct.warrantyExpiration})`}
+                    </div>
+                    <div className="text-[9px] text-muted-foreground leading-relaxed whitespace-pre-wrap font-medium border-l-2 border-emerald-500/30 pl-3">
+                      {mainProduct.warrantyTerms || data.settings.warrantyTerms}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* MinTIC Legal Verification Stamp */}
               <div className="bg-[#f15a24]/5 border border-[#f15a24]/10 rounded-2xl p-5 space-y-3 print:bg-slate-50/50 print:border-slate-200">

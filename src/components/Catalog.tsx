@@ -3,7 +3,7 @@ import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
-import { Search, ShoppingBag, Camera, Menu, ShieldCheck, LayoutDashboard, ChevronRight, Apple, Smartphone, X, ChevronLeft, Send, Tablet, Watch, Headphones, CreditCard, MessageCircle } from 'lucide-react';
+import { Search, ShoppingBag, Camera, Menu, ShieldCheck, LayoutDashboard, ChevronRight, Apple, Smartphone, X, ChevronLeft, Send, Tablet, Watch, Headphones, CreditCard, MessageCircle, Package } from 'lucide-react';
 import { useData } from '../context/AppDataContext';
 import { useCloudinary } from '../hooks/useCloudinary';
 import { fmt, cn, extractGB, extractBattery } from '../lib/utils';
@@ -15,6 +15,8 @@ import { Product } from '../types';
 
 // Dynamic Warranty Badge/Label based on product characteristics & category
 export const getProductWarranty = (p: Product) => {
+  if (p.category === 'POKEMON TCG') return null;
+  
   const nameLower = p.name.toLowerCase();
   const descLower = (p.description || '').toLowerCase();
   
@@ -196,7 +198,7 @@ export default function Catalog() {
     if (!data.products) return [];
     return data.products
       .filter(p => 
-        (p.status === 'stock' || p.status === 'reserved' || !p.status) && 
+        (p.status === 'stock' || p.status === 'reserved' || (p.category === 'POKEMON TCG' && p.status === 'out_of_stock')) && 
         !p.hideInCatalog &&
         (p.name?.toLowerCase() || '').includes(search.toLowerCase()) &&
         (category === 'all' || 
@@ -208,6 +210,7 @@ export default function Catalog() {
 
   const categories = [
     { id: 'all', name: 'TODO', icon: ShoppingBag },
+    { id: 'POKEMON TCG', name: 'POKEMON TCG', icon: Package },
     { id: 'CELULARES', name: 'CELULARES', icon: Smartphone },
     { id: 'TABLETS', name: 'TABLETS', icon: Tablet },
     { id: 'RELOJ INTELIGENTES', name: 'RELOJ INTELIGENTES', icon: Watch },
@@ -417,7 +420,7 @@ export default function Catalog() {
               <motion.div key={p.id} variants={item}>
                 <Card className="group card-premium rounded-xl sm:rounded-3xl overflow-hidden border-none h-full flex flex-col bg-card shadow-sm hover:shadow-xl transition-all duration-500">
                   <div 
-                    className="aspect-[3/4] sm:aspect-video relative flex items-center justify-center bg-muted/30 overflow-hidden cursor-pointer"
+                    className="aspect-[3/4] sm:aspect-video relative flex items-center justify-center bg-white overflow-hidden cursor-pointer"
                     onClick={() => {
                         setSelectedProduct(p);
                         setActiveImageIndex(0);
@@ -426,7 +429,7 @@ export default function Catalog() {
                     {p.images && p.images.length > 0 ? (
                       <img 
                         src={getOptimizedUrl(p.images[0], 600, 800)} 
-                        className="w-full h-full object-contain sm:object-cover sm:group-hover:scale-110 transition-transform duration-700 bg-slate-50/60 dark:bg-slate-900/20" 
+                        className="w-full h-full object-contain sm:group-hover:scale-110 transition-transform duration-700" 
                         alt={p.name} 
                         loading="lazy"
                       />
@@ -449,13 +452,15 @@ export default function Catalog() {
                         </div>
                     )}
                     
-                    <Badge variant={p.status === 'stock' ? 'secondary' : p.status === 'reserved' ? 'outline' : 'default'} className={cn(
+                    <Badge variant={p.status === 'stock' ? 'secondary' : (p.status === 'reserved' || p.status === 'out_of_stock') ? 'outline' : 'default'} className={cn(
                       "absolute top-2 right-2 sm:top-4 sm:right-4 z-10 text-[7px] sm:text-[8px] font-black uppercase tracking-[0.2em] px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full border-none shadow-lg backdrop-blur-md",
                       p.status === 'stock' ? "bg-white/90 text-[#f15a24]" : 
-                      p.status === 'reserved' ? "bg-orange-50/90 text-orange-600" :
+                      (p.status === 'reserved' || p.status === 'out_of_stock') ? "bg-orange-50/90 text-orange-600" :
                       "bg-rose-50/90 text-rose-600"
                     )}>
-                      {p.status === 'stock' ? 'DISPONIBLE' : p.status === 'reserved' ? 'SEPARADO' : 'AGOTADO'}
+                      {p.category === 'POKEMON TCG' 
+                        ? (p.status === 'stock' ? 'DISPONIBLE AHORA' : 'DISPONIBLE PRONTO') 
+                        : (p.status === 'stock' ? 'DISPONIBLE' : p.status === 'reserved' ? 'SEPARADO' : 'AGOTADO')}
                     </Badge>
                   </div>
 
@@ -482,6 +487,7 @@ export default function Catalog() {
                            )}
                            {(() => {
                              const warranty = getProductWarranty(p);
+                             if (!warranty) return null;
                              return (
                                <div className={cn("px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-tighter flex items-center gap-0.5 shadow-xs", warranty.badgeColor)}>
                                  {warranty.short}
@@ -575,7 +581,7 @@ export default function Catalog() {
                                         )}
                                         aria-label={`Ver imagen ${i + 1}`}
                                     >
-                                        <img src={getOptimizedUrl(img, 200, 200)} className="w-full h-full object-contain rounded-md bg-slate-50/20" alt="" />
+                                        <img src={getOptimizedUrl(img, 200, 200)} className="w-full h-full object-contain rounded-md" alt="" />
                                     </button>
                                 ))}
                             </div>
@@ -664,6 +670,7 @@ export default function Catalog() {
                                 )}
                                 {(() => {
                                     const warranty = getProductWarranty(selectedProduct);
+                                    if (!warranty) return null;
                                     return (
                                         <div className={cn("px-2.5 py-1 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-xs", warranty.badgeColor)}>
                                             {warranty.short}
@@ -695,12 +702,21 @@ export default function Catalog() {
                                         )}>
                                             {fmt(selectedProduct.salePrice || 0)}
                                         </div>
-                                        {selectedProduct.status === 'stock' && (
+                                        {(selectedProduct.status === 'stock' || (selectedProduct.category === 'POKEMON TCG' && selectedProduct.status === 'out_of_stock')) && (
                                             <div className="flex flex-col gap-1 pt-1">
-                                                <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 text-[8px] sm:text-[10px] font-black px-2 py-0.5">DISPONIBILIDAD INMEDIATA</Badge>
+                                                <Badge variant="outline" className={cn(
+                                                  "border-emerald-200 bg-emerald-50 text-emerald-700 text-[8px] sm:text-[10px] font-black px-2 py-0.5",
+                                                  selectedProduct.category === 'POKEMON TCG' && "bg-[#f15a24]/10 text-[#f15a24] border-[#f15a24]/20"
+                                                )}>
+                                                  {selectedProduct.category === 'POKEMON TCG' 
+                                                    ? (selectedProduct.status === 'stock' ? 'DISPONIBLE AHORA' : 'DISPONIBLE PRONTO') 
+                                                    : 'DISPONIBILIDAD INMEDIATA'}
+                                                </Badge>
                                                 <div className="flex items-center gap-1 pl-1.5">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                                    <span className="text-[8px] font-black uppercase tracking-widest text-emerald-600">Certificado Apple</span>
+                                                    <span className={cn("w-1.5 h-1.5 rounded-full animate-pulse", selectedProduct.category === 'POKEMON TCG' ? "bg-[#f15a24]" : "bg-emerald-500")}></span>
+                                                    <span className={cn("text-[8px] font-black uppercase tracking-widest", selectedProduct.category === 'POKEMON TCG' ? "text-[#f15a24]" : "text-emerald-600")}>
+                                                      {selectedProduct.category === 'POKEMON TCG' ? 'Producto TCG' : 'Certificado Apple'}
+                                                    </span>
                                                 </div>
                                             </div>
                                         )}
@@ -733,6 +749,7 @@ export default function Catalog() {
                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 {(() => {
                                      const warranty = getProductWarranty(selectedProduct);
+                                     if (!warranty) return null;
                                      return (
                                          <div className="p-5 bg-muted/20 rounded-2xl border border-border/50 flex flex-col gap-3">
                                              <div className="flex items-center gap-2 text-[#f15a24]">
@@ -745,30 +762,17 @@ export default function Catalog() {
                                              </div>
                                          </div>
                                      );
-                                 })() && (
-                                     null
-                                 ) && (
-                                    <div className="p-5 bg-muted/20 rounded-2xl border border-border/50 flex flex-col gap-3">
-                                        <div className="flex items-center gap-2 text-primary">
-                                            <ShieldCheck className="w-5 h-5" />
-                                            <span className="text-[10px] font-black uppercase tracking-widest">Garantía LD</span>
-                                        </div>
-                                        <div>
-                                            <p className="text-base font-black text-foreground leading-none">{selectedProduct.warrantyMonths} MESES</p>
-                                            <p className="text-[9px] text-muted-foreground font-bold uppercase mt-1">Cobertura técnica total</p>
-                                        </div>
-                                    </div>
-                                )}
-                                <div className="p-5 bg-muted/20 rounded-2xl border border-border/50 flex flex-col gap-3">
-                                    <div className="flex items-center gap-2 text-emerald-500">
-                                        <Smartphone className="w-5 h-5" />
-                                        <span className="text-[10px] font-black uppercase tracking-widest">Calidad Apple</span>
-                                    </div>
-                                    <div>
-                                        <p className="text-base font-black text-foreground leading-none">ORIGINAL</p>
-                                        <p className="text-[9px] text-muted-foreground font-bold uppercase mt-1">Componentes certificados</p>
-                                    </div>
-                                </div>
+                                 })()}
+                                 <div className="p-5 bg-muted/20 rounded-2xl border border-border/50 flex flex-col gap-3">
+                                     <div className="flex items-center gap-2 text-emerald-500">
+                                         <Smartphone className="w-5 h-5" />
+                                         <span className="text-[10px] font-black uppercase tracking-widest">{selectedProduct.category === 'POKEMON TCG' ? 'Producto TCG' : 'Calidad Apple'}</span>
+                                     </div>
+                                     <div>
+                                         <p className="text-base font-black text-foreground leading-none">{selectedProduct.category === 'POKEMON TCG' ? 'SELLADO' : 'ORIGINAL'}</p>
+                                         <p className="text-[9px] text-muted-foreground font-bold uppercase mt-1">{selectedProduct.category === 'POKEMON TCG' ? 'Importación Directa' : 'Componentes certificados'}</p>
+                                     </div>
+                                 </div>
                            </div>
                         </div>
 
@@ -822,9 +826,9 @@ export default function Catalog() {
              ) : (
                cart.map(p => (
                  <div key={p.id} className="flex gap-4 p-4 bg-card rounded-2xl border border-border shadow-sm items-center">
-                    <div className="w-16 h-16 bg-muted rounded-xl overflow-hidden shrink-0">
+                    <div className="w-16 h-16 bg-white rounded-xl overflow-hidden shrink-0 flex items-center justify-center border border-border">
                        {p.images && p.images[0] ? (
-                          <img src={getOptimizedUrl(p.images[0], 200, 200)} className="w-full h-full object-cover" />
+                          <img src={getOptimizedUrl(p.images[0], 200, 200)} className="w-full h-full object-contain" />
                        ) : <div className="w-full h-full flex items-center justify-center"><Smartphone className="w-6 h-6 opacity-20" /></div>}
                     </div>
                     <div className="flex-1 min-w-0">

@@ -680,7 +680,7 @@ export default function PokemonTCG() {
         await setDoc(productRef, {
           id,
           name: payload.name,
-          category: 'POKEMON',
+          category: 'POKEMON TCG',
           purchasePrice: payload.investedPrice || 0,
           salePrice: payload.tcgplayerPrice || 0,
           status: 'stock',
@@ -688,7 +688,10 @@ export default function PokemonTCG() {
           purchaseDate: payload.dateAdded,
           investor: 'Duvan',
           description: `${payload.set} - ${payload.cardNumber} (${payload.condition})`,
-          images: payload.imageUrl ? [payload.imageUrl] : []
+          images: payload.imageUrl ? [payload.imageUrl] : [],
+          warrantyMonths: 0,
+          warrantyExpiration: '',
+          warrantyTerms: 'Sin garantía por categoría Pokemon TCG'
         }, { merge: true });
       } catch (syncErr) {
         console.error("Failed to sync with main products collection:", syncErr);
@@ -917,7 +920,7 @@ export default function PokemonTCG() {
         await setDoc(productRef, {
           id,
           name: payload.name,
-          category: 'POKEMON',
+          category: 'POKEMON TCG',
           purchasePrice: payload.investedPrice || 0,
           salePrice: payload.tcgplayerPrice || 0,
           status: payload.quantity > 0 ? 'stock' : 'out_of_stock',
@@ -925,7 +928,10 @@ export default function PokemonTCG() {
           purchaseDate: payload.dateAdded || new Date().toISOString().split('T')[0],
           investor: 'Duvan', // Default investor for Pokemon items
           description: `${payload.set} - ${payload.cardNumber} (${payload.condition}) - ${payload.notes}`,
-          images: payload.imageUrl ? [payload.imageUrl] : []
+          images: payload.imageUrl ? [payload.imageUrl] : [],
+          warrantyMonths: 0,
+          warrantyExpiration: '',
+          warrantyTerms: 'Sin garantía por categoría Pokemon TCG'
         }, { merge: true });
       } catch (syncErr) {
         console.error("Failed to sync with main products collection:", syncErr);
