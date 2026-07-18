@@ -17,6 +17,7 @@ import { fmt, cn } from '../lib/utils';
 import { db } from '../lib/firebase';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend } from 'recharts';
+import { MonPriceImportDialog } from './MonPriceImportDialog';
 
 // Types for Pokemon Inventory
 interface PokemonItem {
@@ -26,7 +27,7 @@ interface PokemonItem {
   set: string;
   cardNumber?: string;
   rarity?: string;
-  tcgplayerPrice: number; // in USD
+  marketPrice: number; // Suggested price
   collectrPrice?: number | null; // in USD (Collectr market price)
   investedPrice?: number | null; // in USD (optional acquisition cost)
   imageUrl: string;
@@ -35,6 +36,11 @@ interface PokemonItem {
   notes?: string;
   dateAdded: string;
   language?: string; // e.g. Inglés, Español, Japonés, etc.
+  lastPriceUpdate?: {
+    source: 'MonPrice' | 'Manual' | 'TCGPlayer';
+    date: string;
+    previousPrice: number;
+  };
 }
 
 function getLanguagePresets(language: string, basePrice: number) {
@@ -254,10 +260,6 @@ export default function PokemonTCG() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Bulk Price Synchronization States
-  const [isSyncingPrices, setIsSyncingPrices] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<string | null>(null);
-
   // Filters & UI states
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'card' | 'sealed'>('all');
@@ -320,6 +322,7 @@ export default function PokemonTCG() {
 
   // Manual & Scan Result Dialog State
   const [isResultOpen, setIsResultOpen] = useState(false);
+  const [isMonPriceOpen, setIsMonPriceOpen] = useState(false);
   const [originalEnglishPrice, setOriginalEnglishPrice] = useState<number>(0);
   const [previewError, setPreviewError] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ id: string; name: string } | null>(null);
@@ -331,7 +334,7 @@ export default function PokemonTCG() {
     set: '',
     cardNumber: '',
     rarity: 'Common',
-    tcgplayerPrice: 0,
+    marketPrice: 0,
     collectrPrice: null,
     investedPrice: undefined,
     imageUrl: '',
@@ -393,59 +396,6 @@ export default function PokemonTCG() {
     return () => unsub();
   }, []);
 
-  // Handle bulk price sync calling server endpoint
-  const handleSyncPrices = async () => {
-    if (inventory.length === 0) {
-      alert("No hay artículos en el inventario para sincronizar.");
-      return;
-    }
-    
-    setIsSyncingPrices(true);
-    setSyncStatus("Sincronizando precios...");
-    
-    try {
-      const response = await fetch('/api/pokemon/sync', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ items: inventory })
-      });
-      
-      if (!response.ok) {
-        throw new Error("Error en el servidor al sincronizar precios.");
-      }
-      
-      const { updates } = await response.json();
-      
-      if (updates && updates.length > 0) {
-        setSyncStatus(`Actualizando ${updates.length} artículos...`);
-        let count = 0;
-        for (const update of updates) {
-          try {
-            await updateDoc(doc(db, 'pokemon_inventory', update.id), {
-              tcgplayerPrice: Number(update.tcgplayerPrice) || 0,
-              notes: update.notes || '',
-              imageUrl: update.imageUrl || ''
-            });
-            count++;
-          } catch (err) {
-            console.error(`Error actualizando artículo ${update.id}:`, err);
-          }
-        }
-        alert(`Sincronización completada: se actualizaron exitosamente ${count} artículos.`);
-      } else {
-        alert("Sincronización completada: todos los precios están actualizados.");
-      }
-    } catch (err: any) {
-      console.error("Error sincronizando precios:", err);
-      alert(`Error al sincronizar precios: ${err.message || 'Error desconocido'}`);
-    } finally {
-      setIsSyncingPrices(false);
-      setSyncStatus(null);
-    }
-  };
-
   // Set Options for filters
   const uniqueSets = useMemo(() => {
     const sets = new Set<string>();
@@ -476,13 +426,13 @@ export default function PokemonTCG() {
 
     inventory.forEach((item) => {
       totalQty += item.quantity;
-      totalUsd += (item.tcgplayerPrice || 0) * item.quantity;
+      totalUsd += (item.marketPrice || 0) * item.quantity;
       
       const invested = Number(item.investedPrice) || 0;
       if (invested > 0) {
         totalInvestedUsd += invested * item.quantity;
         totalInvestedValueForROI += invested * item.quantity;
-        totalCurrentValueForROI += (item.tcgplayerPrice || 0) * item.quantity;
+        totalCurrentValueForROI += (item.marketPrice || 0) * item.quantity;
       }
 
       if (item.type === 'card') {
@@ -517,7 +467,7 @@ export default function PokemonTCG() {
     let sealedValue = 0;
 
     inventory.forEach((item) => {
-      const val = (item.tcgplayerPrice || 0) * item.quantity;
+      const val = (item.marketPrice || 0) * item.quantity;
       if (item.type === 'card') cardsValue += val;
       else sealedValue += val;
     });
@@ -530,12 +480,12 @@ export default function PokemonTCG() {
 
   const topItemsChartData = useMemo(() => {
     return [...inventory]
-      .sort((a, b) => (b.tcgplayerPrice * b.quantity) - (a.tcgplayerPrice * a.quantity))
+      .sort((a, b) => ((b.marketPrice || 0) * b.quantity) - ((a.marketPrice || 0) * a.quantity))
       .slice(0, 5)
       .map(item => ({
         name: item.name.length > 15 ? `${item.name.substring(0, 15)}...` : item.name,
-        valorUSD: Math.round(item.tcgplayerPrice * item.quantity),
-        valorCOP: Math.round(item.tcgplayerPrice * item.quantity * usdtRate)
+        valorUSD: Math.round((item.marketPrice || 0) * item.quantity),
+        valorCOP: Math.round((item.marketPrice || 0) * item.quantity * usdtRate)
       }));
   }, [inventory, usdtRate]);
 
@@ -554,8 +504,8 @@ export default function PokemonTCG() {
         return matchesSearch && matchesType && matchesSet && matchesLanguage;
       })
       .sort((a, b) => {
-        if (sortBy === 'price_desc') return b.tcgplayerPrice - a.tcgplayerPrice;
-        if (sortBy === 'price_asc') return a.tcgplayerPrice - b.tcgplayerPrice;
+        if (sortBy === 'price_desc') return (b.marketPrice || 0) - (a.marketPrice || 0);
+        if (sortBy === 'price_asc') return (a.marketPrice || 0) - (b.marketPrice || 0);
         if (sortBy === 'qty_desc') return b.quantity - a.quantity;
         if (sortBy === 'name_asc') return a.name.localeCompare(b.name);
         return 0;
@@ -662,7 +612,7 @@ export default function PokemonTCG() {
         set: item.set,
         cardNumber: item.cardNumber || '',
         rarity: item.rarity || '',
-        tcgplayerPrice: Number(item.tcgplayerPrice) || 0,
+        marketPrice: Number(item.marketPrice) || 0,
         investedPrice: null,
         imageUrl: item.imageUrl || '',
         quantity: 1,
@@ -682,7 +632,7 @@ export default function PokemonTCG() {
           name: payload.name,
           category: 'POKEMON TCG',
           purchasePrice: payload.investedPrice || 0,
-          salePrice: payload.tcgplayerPrice || 0,
+          salePrice: payload.marketPrice || 0,
           status: 'stock',
           quantity: 1,
           purchaseDate: payload.dateAdded,
@@ -749,7 +699,7 @@ export default function PokemonTCG() {
       } catch (e) {
         throw new Error("Error al procesar la respuesta del servidor.");
       }
-      const priceVal = result.tcgplayerPrice || 0;
+      const priceVal = result.marketPrice || 0;
       setOriginalEnglishPrice(priceVal);
 
       const finalItem: Partial<PokemonItem> = {
@@ -758,7 +708,7 @@ export default function PokemonTCG() {
         set: result.set || '',
         cardNumber: result.cardNumber || '',
         rarity: result.rarity || '',
-        tcgplayerPrice: priceVal,
+        marketPrice: priceVal,
         collectrPrice: result.collectrPrice !== undefined && result.collectrPrice !== null ? Number(result.collectrPrice) : null,
         imageUrl: result.suggestedImageUrl || scanPreview, // prefer official suggested art, fallback to scanned pic
         quantity: 1,
@@ -833,7 +783,7 @@ export default function PokemonTCG() {
       } catch (e) {
         throw new Error("El servidor devolvió una respuesta inválida. Por favor intenta de nuevo en unos segundos.");
       }
-      const priceVal = result.tcgplayerPrice || 0;
+      const priceVal = result.marketPrice || 0;
       setOriginalEnglishPrice(priceVal);
 
       const finalItem: Partial<PokemonItem> = {
@@ -842,7 +792,7 @@ export default function PokemonTCG() {
         set: result.set || '',
         cardNumber: result.cardNumber || '',
         rarity: result.rarity || '',
-        tcgplayerPrice: priceVal,
+        marketPrice: priceVal,
         collectrPrice: result.collectrPrice !== undefined && result.collectrPrice !== null ? Number(result.collectrPrice) : null,
         imageUrl: result.suggestedImageUrl || 'https://images.pokemontcg.io/logo.png',
         quantity: 1,
@@ -901,7 +851,7 @@ export default function PokemonTCG() {
         set: editingItem.set,
         cardNumber: editingItem.cardNumber || '',
         rarity: editingItem.rarity || '',
-        tcgplayerPrice: Number(editingItem.tcgplayerPrice) || 0,
+        marketPrice: Number(editingItem.marketPrice) || 0,
         collectrPrice: editingItem.collectrPrice !== undefined && editingItem.collectrPrice !== null ? Number(editingItem.collectrPrice) : null,
         investedPrice: (editingItem.investedPrice !== undefined && editingItem.investedPrice !== null && editingItem.investedPrice !== '') ? Number(editingItem.investedPrice) : null,
         imageUrl: editingItem.imageUrl || '',
@@ -922,7 +872,7 @@ export default function PokemonTCG() {
           name: payload.name,
           category: 'POKEMON TCG',
           purchasePrice: payload.investedPrice || 0,
-          salePrice: payload.tcgplayerPrice || 0,
+          salePrice: payload.marketPrice || 0,
           status: payload.quantity > 0 ? 'stock' : 'out_of_stock',
           quantity: payload.quantity,
           purchaseDate: payload.dateAdded || new Date().toISOString().split('T')[0],
@@ -946,7 +896,7 @@ export default function PokemonTCG() {
         set: '',
         cardNumber: '',
         rarity: 'Common',
-        tcgplayerPrice: 0,
+        marketPrice: 0,
         collectrPrice: null,
         investedPrice: undefined,
         imageUrl: '',
@@ -998,7 +948,7 @@ export default function PokemonTCG() {
   const handleEditClick = (item: PokemonItem) => {
     setPreviewError(false);
     setEditingItem({ ...item });
-    let base = item.tcgplayerPrice || 0;
+    let base = item.marketPrice || 0;
     if (item.language === 'Español' && base > 0) {
       base = base / 0.65;
     } else if (item.language === 'Japonés' && base > 0) {
@@ -1019,7 +969,7 @@ export default function PokemonTCG() {
       alert("No hay artículos para exportar.");
       return;
     }
-    const headers = ["ID", "Tipo", "Nombre", "Set", "Numero de Carta", "Rareza", "Idioma", "Condicion", "Cantidad", "Precio TCGplayer (USD)", "Inversion (USD)", "Notas", "Fecha de Adicion"];
+    const headers = ["ID", "Tipo", "Nombre", "Set", "Numero de Carta", "Rareza", "Idioma", "Condicion", "Cantidad", "Precio Sugerido (USD)", "Inversion (USD)", "Notas", "Fecha de Adicion"];
     const rows = inventory.map(item => [
       item.id,
       item.type === 'card' ? 'Carta' : 'Producto Sellado',
@@ -1030,7 +980,7 @@ export default function PokemonTCG() {
       item.language || 'Inglés',
       item.condition,
       item.quantity,
-      item.tcgplayerPrice,
+      item.marketPrice,
       item.investedPrice || '',
       (item.notes || '').replace(/"/g, '""'),
       item.dateAdded
@@ -1059,7 +1009,7 @@ export default function PokemonTCG() {
             <Coins className="w-6 h-6 text-yellow-500 animate-pulse" /> Pokémon TCG Hub
           </h1>
           <p className="text-muted-foreground text-xs font-bold uppercase tracking-wider">
-            Gestión Profesional de Colecciones y Valuación en tiempo real (TCGplayer)
+            Gestión Profesional de Colecciones y Valuación Manual / MonPrice
           </p>
         </div>
          <div className="flex items-center gap-2 flex-wrap">
@@ -1073,13 +1023,12 @@ export default function PokemonTCG() {
           </Button>
           <Button 
             variant="outline"
-            onClick={handleSyncPrices}
-            disabled={isSyncingPrices}
-            className="border-yellow-500/30 text-yellow-500 hover:bg-yellow-500/10 font-bold text-xs uppercase tracking-wider h-10 px-3 flex items-center gap-2 shadow-sm"
-            title="Sincronizar precios de todo el inventario usando APIs e IA"
+            onClick={() => setIsMonPriceOpen(true)}
+            className="border-indigo-500/30 text-indigo-500 hover:bg-indigo-500/10 font-bold text-xs uppercase tracking-wider h-10 px-3 flex items-center gap-2 shadow-sm"
+            title="Importar precios desde MonPrice (JSON/CSV)"
           >
-            <RefreshCw className={cn("w-3.5 h-3.5", isSyncingPrices && "animate-spin")} /> 
-            {isSyncingPrices ? (syncStatus || "Sincronizando...") : "Sincronizar Precios"}
+            <RefreshCw className="w-3.5 h-3.5" /> 
+            Importar MonPrice
           </Button>
           <Button 
             onClick={() => {
@@ -1101,7 +1050,7 @@ export default function PokemonTCG() {
                 set: '',
                 cardNumber: '',
                 rarity: 'Common',
-                tcgplayerPrice: 0,
+                marketPrice: 0,
                 imageUrl: '',
                 quantity: 1,
                 condition: 'NM',
@@ -1142,7 +1091,7 @@ export default function PokemonTCG() {
               <h3 className="text-lg sm:text-xl font-black mt-1 text-yellow-600">
                 ${stats.totalUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </h3>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Precios oficiales TCGplayer</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Valuación basada en mercado</p>
             </div>
           </CardContent>
         </Card>
@@ -1420,7 +1369,7 @@ export default function PokemonTCG() {
           {!loading && viewMode === 'grid' && filteredInventory.length > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
               {filteredInventory.map((item) => {
-                const itemTotalUsd = item.tcgplayerPrice * item.quantity;
+                const itemTotalUsd = (item.marketPrice || 0) * item.quantity;
                 const itemTotalCop = itemTotalUsd * usdtRate;
 
                 return (
@@ -1521,7 +1470,7 @@ export default function PokemonTCG() {
                           <div className="flex flex-col items-end">
                             <span className="text-[10px] font-bold text-muted-foreground uppercase leading-none mb-0.5">Market Prices</span>
                             <div className="flex flex-col items-end gap-0.5">
-                              <span className="text-xs font-black text-foreground">${item.tcgplayerPrice.toFixed(2)} USD</span>
+                              <span className="text-xs font-black text-foreground">${(item.marketPrice || 0).toFixed(2)} USD</span>
                               {item.collectrPrice ? (
                                 <span className="text-[10px] font-black text-indigo-500">${item.collectrPrice.toFixed(2)} (C)</span>
                               ) : null}
@@ -1544,19 +1493,19 @@ export default function PokemonTCG() {
                               <span className="text-[10px] text-muted-foreground font-bold uppercase">ROI Est.</span>
                               <span className={cn(
                                 "text-xs font-black",
-                                item.tcgplayerPrice >= item.investedPrice ? "text-emerald-500" : "text-rose-500"
+                                (item.marketPrice || 0) >= item.investedPrice ? "text-emerald-500" : "text-rose-500"
                               )}>
-                                {item.tcgplayerPrice >= item.investedPrice ? '+' : ''}
-                                {(((item.tcgplayerPrice - item.investedPrice) / item.investedPrice) * 100).toFixed(0)}%
+                                {(item.marketPrice || 0) >= item.investedPrice ? '+' : ''}
+                                {((((item.marketPrice || 0) - item.investedPrice) / item.investedPrice) * 100).toFixed(0)}%
                               </span>
                             </div>
                           </>
                         ) : null}
                         <div className="flex items-center justify-between mt-1 pt-1 border-t border-border/30">
                           <span className="text-[10px] text-muted-foreground font-bold uppercase">Valor Total</span>
-                          <span className="text-xs font-black text-amber-600">${itemTotalUsd.toFixed(2)} USD</span>
+                          <span className="text-xs font-black text-amber-600">${((item.marketPrice || 0) * item.quantity).toFixed(2)} USD</span>
                         </div>
-                        <div className="text-[10px] text-right font-bold text-emerald-600 mt-0.5">{fmt(itemTotalCop)}</div>
+                        <div className="text-[10px] text-right font-bold text-emerald-600 mt-0.5">{fmt((item.marketPrice || 0) * item.quantity * usdtRate)}</div>
                       </div>
                     </div>
 
@@ -1608,7 +1557,7 @@ export default function PokemonTCG() {
                 </TableHeader>
                 <TableBody>
                   {filteredInventory.map((item) => {
-                    const itemTotalUsd = item.tcgplayerPrice * item.quantity;
+                    const itemTotalUsd = (item.marketPrice || 0) * item.quantity;
                     const itemTotalCop = itemTotalUsd * usdtRate;
 
                     return (
@@ -1666,23 +1615,25 @@ export default function PokemonTCG() {
                         </TableCell>
                         <TableCell className="text-xs font-black font-mono text-right py-4">
                           <div className="flex flex-col items-end gap-0.5">
-                            <span>${item.tcgplayerPrice.toFixed(2)}</span>
+                            <span>${(item.marketPrice || 0).toFixed(2)}</span>
                             {item.collectrPrice ? (
                               <span className="text-[10px] text-indigo-500 font-bold">${item.collectrPrice.toFixed(2)} (C)</span>
                             ) : null}
                           </div>
                         </TableCell>
                         <TableCell className="text-xs font-black font-mono text-amber-600 text-right py-4">
-                          ${itemTotalUsd.toFixed(2)}
+                          ${((item.marketPrice || 0) * item.quantity).toFixed(2)}
                         </TableCell>
                         <TableCell className="text-xs font-black font-mono text-emerald-600 text-right py-4">
-                          {fmt(itemTotalCop)}
+                          {fmt((item.marketPrice || 0) * item.quantity * usdtRate)}
                         </TableCell>
                         <TableCell className="text-xs font-bold font-mono text-right py-4">
                           {item.investedPrice ? (
-                            <span className={item.tcgplayerPrice >= item.investedPrice ? "text-emerald-500" : "text-rose-500"}>
-                              {item.tcgplayerPrice >= item.investedPrice ? '+' : ''}
-                              {(((item.tcgplayerPrice - item.investedPrice) / item.investedPrice) * 100).toFixed(0)}%
+                            <span className={cn(
+                              (item.marketPrice || 0) >= item.investedPrice ? "text-emerald-500" : "text-rose-500"
+                            )}>
+                              {(item.marketPrice || 0) >= item.investedPrice ? '+' : ''}
+                              {((((item.marketPrice || 0) - item.investedPrice) / item.investedPrice) * 100).toFixed(0)}%
                             </span>
                           ) : (
                             <span className="text-muted-foreground">-</span>
@@ -1784,7 +1735,7 @@ export default function PokemonTCG() {
               </Badge>
             </DialogTitle>
             <DialogDescription className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground mt-1">
-              Escanea con tu cámara, sube un archivo o busca por texto para valorar tus cartas al instante con TCGplayer.
+              Escanea con tu cámara, sube un archivo o busca por texto para valorar tus artículos al instante.
             </DialogDescription>
           </DialogHeader>
 
@@ -1937,7 +1888,7 @@ export default function PokemonTCG() {
                   <div className="space-y-3 bg-muted/10 p-5 rounded-xl border border-border">
                     <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground uppercase font-black tracking-wider">
                       <Info className="w-3.5 h-3.5 text-yellow-500" />
-                      <span>Escribe los detalles para que la IA localice el artículo en TCGplayer</span>
+                      <span>Escribe los detalles para que la IA localice el artículo y sugiera un precio</span>
                     </div>
                     <div className="flex flex-col gap-2.5">
                       <div className="relative">
@@ -1976,7 +1927,7 @@ export default function PokemonTCG() {
                                     set: card.set,
                                     cardNumber: card.cardNumber,
                                     rarity: card.rarity,
-                                    tcgplayerPrice: card.tcgplayerPrice,
+                                    marketPrice: card.marketPrice,
                                     imageUrl: card.imageUrl,
                                     quantity: 1,
                                     condition: card.type === 'sealed' ? 'Sealed' : 'NM',
@@ -1984,7 +1935,7 @@ export default function PokemonTCG() {
                                     language: card.language || 'Inglés'
                                   };
                                   setEditingItem(finalItem);
-                                  setOriginalEnglishPrice(card.tcgplayerPrice);
+                                  setOriginalEnglishPrice(card.marketPrice);
                                   setIsScanOpen(false);
                                   setIsResultOpen(true);
                                   setTextQuery('');
@@ -2013,7 +1964,7 @@ export default function PokemonTCG() {
                                       {card.name}
                                     </p>
                                     <span className="text-[10px] font-black text-emerald-400 shrink-0 font-mono bg-emerald-500/10 px-1.5 py-0.5 rounded">
-                                      ${card.tcgplayerPrice?.toFixed(2)}
+                                      ${card.marketPrice?.toFixed(2)}
                                     </span>
                                   </div>
                                   <div className="flex items-center gap-1.5 text-[9px] text-slate-400 uppercase font-bold mt-1">
@@ -2220,9 +2171,9 @@ export default function PokemonTCG() {
                           
                           {/* Valuation price info */}
                           <div className="mt-1 flex flex-col gap-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs font-black text-amber-500 font-mono">${Number(item.tcgplayerPrice).toFixed(2)}</span>
-                              <span className="text-[9px] text-emerald-600 font-black font-mono">({fmt(item.tcgplayerPrice * usdtRate)})</span>
+                             <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-black text-amber-500 font-mono">${(item.marketPrice || 0).toFixed(2)}</span>
+                              <span className="text-[9px] text-emerald-600 font-black font-mono">({fmt((item.marketPrice || 0) * usdtRate)})</span>
                             </div>
                             {item.collectrPrice ? (
                               <div className="flex items-center gap-1">
@@ -2255,7 +2206,7 @@ export default function PokemonTCG() {
                                 variant="outline"
                                 onClick={() => {
                                   setEditingItem(item);
-                                  setOriginalEnglishPrice(item.tcgplayerPrice);
+                                  setOriginalEnglishPrice(item.marketPrice);
                                   setIsScanOpen(false);
                                   setIsResultOpen(true);
                                 }}
@@ -2280,10 +2231,10 @@ export default function PokemonTCG() {
                 </p>
                 <div className="flex items-center justify-center gap-2">
                   <span className="text-sm font-black text-amber-500 font-mono">
-                    ${scanHistory.reduce((sum, i) => sum + (Number(i.tcgplayerPrice) || 0), 0).toFixed(2)} USD
+                    ${scanHistory.reduce((sum, i) => sum + (Number(i.marketPrice) || 0), 0).toFixed(2)} USD
                   </span>
                   <span className="text-xs text-emerald-600 font-black font-mono">
-                    ({fmt(scanHistory.reduce((sum, i) => sum + (Number(i.tcgplayerPrice) || 0), 0) * usdtRate)})
+                    ({fmt(scanHistory.reduce((sum, i) => sum + (Number(i.marketPrice) || 0), 0) * usdtRate)})
                   </span>
                 </div>
               </div>
@@ -2415,22 +2366,22 @@ export default function PokemonTCG() {
 
                 <div className="grid grid-cols-4 gap-2">
                   <div className="space-y-1">
-                    <Label className="text-[10px] font-black uppercase text-yellow-600">Precio TCGplayer (USD)</Label>
+                    <Label className="text-[10px] font-black uppercase text-yellow-600">Precio Sugerido (USD)</Label>
                     <div className="relative">
                       <span className="absolute left-2.5 top-1.5 text-xs text-muted-foreground">$</span>
                       <Input 
                         type="number" 
                         step="0.01"
                         placeholder="0.00"
-                        value={editingItem.tcgplayerPrice || ''}
-                        onChange={(e) => setEditingItem(prev => ({ ...prev, tcgplayerPrice: Number(e.target.value) }))}
+                        value={editingItem.marketPrice || ''}
+                        onChange={(e) => setEditingItem(prev => ({ ...prev, marketPrice: Number(e.target.value) }))}
                         className="h-8 text-xs font-bold pl-6 font-mono bg-background text-yellow-600"
                       />
                     </div>
                     {/* Real-time COP conversion display */}
-                    {editingItem.tcgplayerPrice ? (
+                    {editingItem.marketPrice ? (
                       <p className="text-[9px] font-bold text-emerald-600 uppercase mt-0.5">
-                        Equiv: {fmt(editingItem.tcgplayerPrice * usdtRate)}
+                        Equiv: {fmt((editingItem.marketPrice || 0) * usdtRate)}
                       </p>
                     ) : null}
                   </div>
@@ -2508,7 +2459,7 @@ export default function PokemonTCG() {
                           key={preset.label}
                           type="button"
                           onClick={() => {
-                            setEditingItem(prev => ({ ...prev, tcgplayerPrice: Number(preset.price.toFixed(2)) }));
+                            setEditingItem(prev => ({ ...prev, marketPrice: Number(preset.price.toFixed(2)) }));
                           }}
                           className="w-full text-left px-2 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded text-[8px] font-black uppercase tracking-wider transition-colors flex items-center justify-between"
                         >
@@ -2625,6 +2576,16 @@ export default function PokemonTCG() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* MonPrice Import Dialog */}
+      <MonPriceImportDialog 
+        open={isMonPriceOpen} 
+        onOpenChange={setIsMonPriceOpen} 
+        inventory={inventory} 
+        onImportComplete={() => {
+          // Refetch happens automatically via onSnapshot
+          console.log("Importación de MonPrice completada.");
+        }}
+      />
     </div>
   );
 }

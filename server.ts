@@ -47,7 +47,7 @@ function fallbackParseQuery(query: string) {
     cardNumber: cardNumber || "",
     language: "Inglés",
     rarity: isSealed ? "Sealed Product" : "Rare",
-    tcgplayerPrice: 5.00, // Safe default fallback value
+    marketPrice: 5.00, // Safe default fallback value
     collectrPrice: null,
     suggestedImageUrl: "https://images.pokemontcg.io/logo.png",
     imageUrl: "https://images.pokemontcg.io/logo.png",
@@ -65,7 +65,7 @@ function fallbackParseScan() {
     cardNumber: "",
     language: "Inglés",
     rarity: "Rare",
-    tcgplayerPrice: 1.00,
+    marketPrice: 1.00,
     collectrPrice: null,
     suggestedImageUrl: "https://images.pokemontcg.io/logo.png",
     imageUrl: "https://images.pokemontcg.io/logo.png",
@@ -253,12 +253,12 @@ Your tasks:
                 cardNumber: { type: Type.STRING },
                 language: { type: Type.STRING },
                 rarity: { type: Type.STRING },
-                tcgplayerPrice: { type: Type.NUMBER },
+                marketPrice: { type: Type.NUMBER },
                 suggestedImageUrl: { type: Type.STRING },
                 confidenceScore: { type: Type.NUMBER },
                 reasoning: { type: Type.STRING }
               },
-              required: ["type", "name", "set", "tcgplayerPrice", "confidenceScore", "reasoning", "language"]
+              required: ["type", "name", "set", "marketPrice", "confidenceScore", "reasoning", "language"]
             }
           }
         });
@@ -436,7 +436,7 @@ Your tasks:
             set: t.includes("151") ? "151" : (t.includes("Obsidian") ? "Obsidian Flames" : (t.includes("Paldea") ? "Paldea Evolved" : "Pokémon TCG")),
             cardNumber: '',
             rarity: 'Sealed Product',
-            tcgplayerPrice: t.includes("Booster Box") ? 140.00 : (t.includes("Trainer Box") ? 45.00 : 120.00),
+            marketPrice: t.includes("Booster Box") ? 140.00 : (t.includes("Trainer Box") ? 45.00 : 120.00),
             imageUrl: 'https://images.pokemontcg.io/logo.png',
             suggestedImageUrl: 'https://images.pokemontcg.io/logo.png',
             language: 'Inglés'
@@ -480,7 +480,7 @@ Your tasks:
           set: card.set?.name || 'Unknown Set',
           cardNumber: `${card.number}/${card.set?.printedTotal || ''}`,
           rarity: card.rarity || 'Common',
-          tcgplayerPrice: tcgPrice || 0.99,
+          marketPrice: tcgPrice || 0.99,
           imageUrl: img,
           suggestedImageUrl: img,
           language: 'Inglés'
@@ -548,7 +548,7 @@ Your tasks:
                   set: card.set?.name || 'Unknown Set',
                   cardNumber: `${card.number}/${card.set?.printedTotal || ''}`,
                   rarity: card.rarity || 'Common',
-                  tcgplayerPrice: tcgPrice,
+                  marketPrice: tcgPrice,
                   imageUrl: img,
                   suggestedImageUrl: img,
                   language: detectedLanguage,
@@ -592,12 +592,12 @@ Format response as JSON: { "type": "card"|"sealed", "name": string, "set": strin
                   set: { type: Type.STRING },
                   cardNumber: { type: Type.STRING },
                   rarity: { type: Type.STRING },
-                  tcgplayerPrice: { type: Type.NUMBER },
+                  marketPrice: { type: Type.NUMBER },
                   confidenceScore: { type: Type.NUMBER },
                   reasoning: { type: Type.STRING },
                   language: { type: Type.STRING }
                 },
-                required: ["type", "name", "set", "tcgplayerPrice", "confidenceScore", "reasoning", "language"]
+                required: ["type", "name", "set", "marketPrice", "confidenceScore", "reasoning", "language"]
               }
             }
           });
@@ -625,76 +625,6 @@ Format response as JSON: { "type": "card"|"sealed", "name": string, "set": strin
     } catch (error: any) {
       console.error("Critical error in search:", error);
       res.status(500).json({ error: "Ocurrió un error crítico durante la búsqueda." });
-    }
-  });
-
-  // API Route for bulk Pokémon TCG prices synchronization (Cards and Sealed products)
-  app.post("/api/pokemon/sync", async (req, res) => {
-    const startTime = Date.now();
-    try {
-      const { items } = req.body || {};
-      if (!items || !Array.isArray(items)) {
-        return res.status(400).json({ error: "No items provided" });
-      }
-
-      console.log(`Starting bulk Pokémon TCG sync for ${items.length} items...`);
-      const updates: any[] = [];
-      const ai = getAiClient();
-
-      for (const item of items) {
-        // Exit early if we are close to Vercel's 10s limit
-        if (Date.now() - startTime > 8000) {
-          console.warn("Sync limit reached, sending partial results");
-          break;
-        }
-
-        try {
-          let tcgPrice = 0;
-          let notes = "";
-          let img = item.imageUrl;
-
-          if (item.type === 'card' && item.id && !item.id.startsWith('manual-') && item.id.includes('-')) {
-            const apiRes = await fetch(`https://api.pokemontcg.io/v2/cards/${item.id}`, { headers: { "User-Agent": "aistudio-build" } });
-            if (apiRes.ok) {
-              const data = (await apiRes.json()) as any;
-              if (data.data) {
-                tcgPrice = getBestPrice(data.data.tcgplayer);
-                img = data.data.images?.large || data.data.images?.small || img;
-                notes = "Sincronizado vía API oficial.";
-              }
-            }
-          }
-
-          if (tcgPrice === 0 || item.type === 'sealed') {
-            const response = await ai.models.generateContent({
-              model: "gemini-3.5-flash",
-              contents: { parts: [{ text: `Price for ${item.type} "${item.name} ${item.set}" (${item.language || 'Inglés'}). JSON: { "price": number, "reasoning": string }` }] },
-              config: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                  type: Type.OBJECT,
-                  properties: { price: { type: Type.NUMBER }, reasoning: { type: Type.STRING } },
-                  required: ["price", "reasoning"]
-                }
-              }
-            });
-            if (response && response.text) {
-              const resData = JSON.parse(response.text.trim());
-              tcgPrice = resData.price;
-              notes = `Sincronizado vía IA: ${resData.reasoning}`;
-            }
-          }
-
-          if (tcgPrice > 0) {
-            const colPrice = await getCollectrPrice(item.name, item.set, item.type || 'card');
-            updates.push({ id: item.id, tcgplayerPrice: tcgPrice, collectrPrice: colPrice, imageUrl: img, notes: notes, lastSync: new Date().toISOString() });
-          }
-        } catch (e) { console.error(`Error syncing ${item.id}`, e); }
-      }
-      res.json(updates);
-    } catch (error) {
-      console.error("Sync error:", error);
-      res.status(500).json({ error: "Sync failed" });
     }
   });
 
