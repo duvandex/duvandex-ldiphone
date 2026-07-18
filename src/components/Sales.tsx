@@ -314,8 +314,8 @@ export default function Sales() {
       </div>
 
       <Card className="border-none shadow-sm bg-card">
-        <CardContent className="p-0">
-          <Table>
+        <CardContent className="p-0 overflow-x-auto">
+          <Table className="min-w-[800px]">
             <TableHeader className="bg-muted/50">
               <TableRow className="hover:bg-transparent border-b border-border">
                 <TableHead className="text-[10px] uppercase font-bold pl-6 text-muted-foreground">Producto</TableHead>
@@ -420,7 +420,7 @@ export default function Sales() {
 
       {/* Confirm Undo Dialog */}
       <Dialog open={isUndoOpen} onOpenChange={setIsUndoOpen}>
-        <DialogContent className="sm:max-w-[400px]">
+        <DialogContent className="sm:max-w-[400px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-rose-600">
               <Trash2 className="w-5 h-5" /> ¿Eliminar Venta?
@@ -444,7 +444,7 @@ export default function Sales() {
 
       {/* Edit Sale Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Editar Venta</DialogTitle>
           </DialogHeader>

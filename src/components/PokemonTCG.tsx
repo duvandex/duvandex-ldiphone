@@ -268,66 +268,12 @@ export default function PokemonTCG() {
   const [sortBy, setSortBy] = useState<'price_desc' | 'price_asc' | 'qty_desc' | 'name_asc'>('price_desc');
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
 
-  // Scanner states
-  const [isScanOpen, setIsScanOpen] = useState(false);
-  const [isScanning, setIsScanning] = useState(false);
-  const [scanPreview, setScanPreview] = useState<string | null>(null);
-  const [scannerError, setScannerError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'upload' | 'camera' | 'text'>('upload');
-  const [textQuery, setTextQuery] = useState('');
-
-  // Camera stream refs
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [cameraActive, setCameraActive] = useState(false);
-  const [cameraFacing, setCameraFacing] = useState<'environment' | 'user'>('environment');
-
-  // Recent scans history (Scandex feature)
-  const [scanHistory, setScanHistory] = useState<any[]>(() => {
-    try {
-      const saved = localStorage.getItem('scandex_recent_scans');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  // Keyboard shortcut listener for MacBook Air users
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isScanOpen) return;
-      
-      // Ignore if typing in input/textarea
-      if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') {
-        return;
-      }
-
-      if (e.code === 'Space' && activeTab === 'camera' && cameraActive) {
-        e.preventDefault();
-        capturePhoto();
-      } else if (e.code === 'KeyR' && scanPreview) {
-        e.preventDefault();
-        setScanPreview(null);
-        if (activeTab === 'camera') {
-          startCamera(cameraFacing);
-        }
-      } else if (e.code === 'Enter' && scanPreview && !isScanning) {
-        e.preventDefault();
-        analyzeItem();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isScanOpen, activeTab, cameraActive, scanPreview, isScanning, cameraFacing]);
-
   // Manual & Scan Result Dialog State
   const [isResultOpen, setIsResultOpen] = useState(false);
   const [isMonPriceOpen, setIsMonPriceOpen] = useState(false);
   const [originalEnglishPrice, setOriginalEnglishPrice] = useState<number>(0);
   const [previewError, setPreviewError] = useState(false);
   const [deleteConfirmation, setDeleteConfirmation] = useState<{ id: string; name: string } | null>(null);
-  const [suggestions, setSuggestions] = useState<any[]>([]);
-  const [isSearchingSuggestions, setIsSearchingSuggestions] = useState(false);
   const [editingItem, setEditingItem] = useState<Partial<PokemonItem>>({
     type: 'card',
     name: '',
@@ -344,34 +290,132 @@ export default function PokemonTCG() {
     language: 'Inglés'
   });
 
-  // Fetch real-time suggestions as the user types (debounced)
+  // Scanner State
+  const [isScanOpen, setIsScanOpen] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [autoDetectEnabled, setAutoDetectEnabled] = useState(true);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Auto-capture loop
   useEffect(() => {
-    if (!textQuery || textQuery.trim().length < 2) {
-      setSuggestions([]);
-      return;
-    }
-
-    const delayDebounce = setTimeout(async () => {
-      setIsSearchingSuggestions(true);
-      try {
-        const response = await fetch('/api/pokemon/suggest', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: textQuery.trim() })
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setSuggestions(data.suggestions || []);
+    if (cameraActive && autoDetectEnabled && !isSearching && !capturedImage) {
+      scanIntervalRef.current = setInterval(() => {
+        if (!isSearching && cameraActive) {
+          autoCapture();
         }
-      } catch (err) {
-        console.error("Error fetching suggestions:", err);
-      } finally {
-        setIsSearchingSuggestions(false);
-      }
-    }, 300); // 300ms debounce
+      }, 3000); // Try every 3 seconds
+    } else {
+      if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
+    }
+    return () => {
+      if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
+    };
+  }, [cameraActive, autoDetectEnabled, isSearching, capturedImage]);
 
-    return () => clearTimeout(delayDebounce);
-  }, [textQuery]);
+  const autoCapture = () => {
+    if (!videoRef.current || !canvasRef.current || isSearching) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.drawImage(video, 0, 0);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.6); // Lower quality for faster detection
+      analyzeItem(dataUrl, true); // true indicates auto-capture
+    }
+  };
+
+  // Scanner Handlers
+  const startCamera = async () => {
+    try {
+      setScanError(null);
+      setCapturedImage(null);
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } 
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        setCameraActive(true);
+      }
+    } catch (err) {
+      console.error("Camera error:", err);
+      setScanError("No se pudo acceder a la cámara. Revisa los permisos.");
+    }
+  };
+
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+      videoRef.current.srcObject = null;
+    }
+    setCameraActive(false);
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.drawImage(video, 0, 0);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      setCapturedImage(dataUrl);
+      stopCamera();
+      analyzeItem(dataUrl);
+    }
+  };
+
+  const analyzeItem = async (imageData: string, isAuto = false) => {
+    if (isAuto && isSearching) return;
+    setIsSearching(true);
+    setScanError(null);
+    if (!isAuto) setCapturedImage(imageData);
+    
+    try {
+      const res = await fetch('/api/pokemon/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: imageData })
+      });
+      
+      if (!res.ok) throw new Error("Error en el análisis");
+      const data = await res.json();
+      
+      if (data.name) {
+        setEditingItem({
+          type: data.type || 'card',
+          name: data.name,
+          set: data.set,
+          cardNumber: data.cardNumber || '',
+          rarity: data.rarity || 'Common',
+          marketPrice: (data.collectrPrice || 0) * (usdtRate || 4000),
+          collectrPrice: data.collectrPrice || null,
+          imageUrl: data.imageUrl || '',
+          quantity: 1,
+          condition: data.type === 'sealed' ? 'Sealed' : 'NM',
+          language: data.language || 'Inglés'
+        });
+        setIsScanOpen(false);
+        setIsResultOpen(true);
+        stopCamera();
+      } else if (!isAuto) {
+        setScanError("No se pudo identificar el item. Intenta con una foto más clara.");
+      }
+    } catch (err) {
+      if (!isAuto) setScanError("Error de conexión con el servidor de IA.");
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   // Subscribe to real-time Pokemon Inventory in Firestore
   useEffect(() => {
@@ -513,326 +557,6 @@ export default function PokemonTCG() {
   }, [inventory, search, filterType, filterSet, filterLanguage, sortBy]);
 
   // Live Camera Handlers
-  const startCamera = async (facing: 'environment' | 'user' = cameraFacing) => {
-    setScannerError(null);
-    // Stop any existing tracks before launching a new mode
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach(track => track.stop());
-    }
-    try {
-      setCameraActive(true);
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: facing } 
-      });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-    } catch (err: any) {
-      console.warn(`Camera access failed for facing: ${facing}, trying fallback.`, err);
-      // Fallback to the other facing mode
-      try {
-        const fallbackFacing = facing === 'environment' ? 'user' : 'environment';
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { facingMode: fallbackFacing } 
-        });
-        setCameraFacing(fallbackFacing);
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-      } catch (fallbackErr: any) {
-        console.error("Camera access failed completely:", fallbackErr);
-        setScannerError("No se pudo acceder a la cámara. Revisa permisos o intenta subir una imagen.");
-        setCameraActive(false);
-      }
-    }
-  };
-
-  const stopCamera = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach(track => track.stop());
-      videoRef.current.srcObject = null;
-    }
-    setCameraActive(false);
-  };
-
-  const toggleCameraFacing = () => {
-    const nextFacing = cameraFacing === 'environment' ? 'user' : 'environment';
-    setCameraFacing(nextFacing);
-    if (cameraActive) {
-      startCamera(nextFacing);
-    }
-  };
-
-  const capturePhoto = () => {
-    if (videoRef.current) {
-      const canvas = document.createElement('canvas');
-      canvas.width = videoRef.current.videoWidth || 640;
-      canvas.height = videoRef.current.videoHeight || 480;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/jpeg');
-        setScanPreview(dataUrl);
-        stopCamera();
-      }
-    }
-  };
-
-  // Convert File to base64
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setScannerError(null);
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setScanPreview(reader.result as string);
-      };
-      reader.onerror = () => {
-        setScannerError("Error al leer el archivo.");
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  // Quick Add State for scanned items
-  const [quickAddedIds, setQuickAddedIds] = useState<Record<string, boolean>>({});
-
-  // Direct collection addition from history list
-  const addScannedItemToCollectionDirectly = async (scanId: string, item: any) => {
-    try {
-      const id = Math.random().toString(36).substr(2, 9);
-      const docRef = doc(db, 'pokemon_inventory', id);
-      
-      const payload: PokemonItem = {
-        id,
-        type: item.type || 'card',
-        name: item.name,
-        set: item.set,
-        cardNumber: item.cardNumber || '',
-        rarity: item.rarity || '',
-        marketPrice: Number(item.marketPrice) || 0,
-        investedPrice: null,
-        imageUrl: item.imageUrl || '',
-        quantity: 1,
-        condition: item.type === 'sealed' ? 'Sealed' : 'NM',
-        notes: item.reasoning || '',
-        language: item.language || 'Inglés',
-        dateAdded: new Date().toISOString().split('T')[0]
-      };
-
-      await setDoc(docRef, payload);
-
-      // ALSO sync with the main 'products' collection
-      try {
-        const productRef = doc(db, 'products', id);
-        await setDoc(productRef, {
-          id,
-          name: payload.name,
-          category: 'POKEMON TCG',
-          purchasePrice: payload.investedPrice || 0,
-          salePrice: payload.marketPrice || 0,
-          status: 'stock',
-          quantity: 1,
-          purchaseDate: payload.dateAdded,
-          investor: 'Duvan',
-          description: `${payload.set} - ${payload.cardNumber} (${payload.condition})`,
-          images: payload.imageUrl ? [payload.imageUrl] : [],
-          warrantyMonths: 0,
-          warrantyExpiration: '',
-          warrantyTerms: 'Sin garantía por categoría Pokemon TCG'
-        }, { merge: true });
-      } catch (syncErr) {
-        console.error("Failed to sync with main products collection:", syncErr);
-      }
-
-      setQuickAddedIds(prev => ({ ...prev, [scanId]: true }));
-    } catch (err) {
-      console.error("Failed to quick add scanned item:", err);
-    }
-  };
-
-  // Trigger Gemini Scanner
-  const analyzeItem = async () => {
-    if (!scanPreview) {
-      setScannerError("Por favor toma una foto o sube un archivo.");
-      return;
-    }
-
-    setIsScanning(true);
-    setScannerError(null);
-
-    try {
-      // Clean base64 header
-      const commaIndex = scanPreview.indexOf(',');
-      const base64Data = commaIndex !== -1 ? scanPreview.substring(commaIndex + 1) : scanPreview;
-      
-      let mimeType = "image/jpeg";
-      if (scanPreview.startsWith("data:")) {
-        const semiIndex = scanPreview.indexOf(';');
-        if (semiIndex !== -1) {
-          mimeType = scanPreview.substring(5, semiIndex);
-        }
-      }
-
-      const response = await fetch('/api/pokemon/scan', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: base64Data, mimeType })
-      });
-
-      if (!response.ok) {
-        let errorMsg = "Fallo en el análisis de imagen";
-        try {
-          const errorData = await response.json();
-          errorMsg = errorData.error || errorMsg;
-        } catch (e) {
-          errorMsg = `Error del servidor (${response.status}): ${response.statusText || 'Error al procesar la imagen'}`;
-        }
-        throw new Error(errorMsg);
-      }
-
-      let result;
-      try {
-        result = await response.json();
-      } catch (e) {
-        throw new Error("Error al procesar la respuesta del servidor.");
-      }
-      const priceVal = result.marketPrice || 0;
-      setOriginalEnglishPrice(priceVal);
-
-      const finalItem: Partial<PokemonItem> = {
-        type: result.type || 'card',
-        name: result.name || '',
-        set: result.set || '',
-        cardNumber: result.cardNumber || '',
-        rarity: result.rarity || '',
-        marketPrice: priceVal,
-        collectrPrice: result.collectrPrice !== undefined && result.collectrPrice !== null ? Number(result.collectrPrice) : null,
-        imageUrl: result.suggestedImageUrl || scanPreview, // prefer official suggested art, fallback to scanned pic
-        quantity: 1,
-        condition: result.type === 'sealed' ? 'Sealed' : 'NM',
-        notes: result.reasoning || '',
-        language: result.language || 'Inglés'
-      };
-
-      setEditingItem(finalItem);
-
-      // Append to recent scans history
-      const scanId = Date.now().toString();
-      const newScan = {
-        id: scanId,
-        timestamp: new Date().toISOString(),
-        ...finalItem,
-        confidenceScore: result.confidenceScore || 0.95
-      };
-
-      setScanHistory(prev => {
-        const next = [newScan, ...prev].slice(0, 10);
-        try {
-          localStorage.setItem('scandex_recent_scans', JSON.stringify(next));
-        } catch (e) {
-          console.error("Failed to write scan history:", e);
-        }
-        return next;
-      });
-
-      setIsScanOpen(false);
-      setIsResultOpen(true);
-    } catch (err: any) {
-      console.error("AI scanning failed:", err);
-      setScannerError(`Error de análisis: ${err.message || 'Inténtalo de nuevo'}`);
-    } finally {
-      setIsScanning(false);
-    }
-  };
-
-  // Trigger Gemini Text Search
-  const analyzeItemByText = async () => {
-    if (!textQuery.trim()) {
-      setScannerError("Por favor escribe el nombre de la carta o artículo.");
-      return;
-    }
-
-    setIsScanning(true);
-    setScannerError(null);
-
-    try {
-      const response = await fetch('/api/pokemon/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: textQuery.trim() })
-      });
-
-      if (!response.ok) {
-        let errorMsg = "Failed to search item";
-        try {
-          const errorData = await response.json();
-          errorMsg = errorData.error || errorMsg;
-        } catch (e) {
-          // If response is not JSON (e.g. Vercel timeout HTML), use status text
-          errorMsg = `Error del servidor (${response.status}): ${response.statusText || 'Tiempo de espera agotado o error interno'}`;
-        }
-        throw new Error(errorMsg);
-      }
-
-      let result;
-      try {
-        result = await response.json();
-      } catch (e) {
-        throw new Error("El servidor devolvió una respuesta inválida. Por favor intenta de nuevo en unos segundos.");
-      }
-      const priceVal = result.marketPrice || 0;
-      setOriginalEnglishPrice(priceVal);
-
-      const finalItem: Partial<PokemonItem> = {
-        type: result.type || 'card',
-        name: result.name || '',
-        set: result.set || '',
-        cardNumber: result.cardNumber || '',
-        rarity: result.rarity || '',
-        marketPrice: priceVal,
-        collectrPrice: result.collectrPrice !== undefined && result.collectrPrice !== null ? Number(result.collectrPrice) : null,
-        imageUrl: result.suggestedImageUrl || 'https://images.pokemontcg.io/logo.png',
-        quantity: 1,
-        condition: result.type === 'sealed' ? 'Sealed' : 'NM',
-        notes: result.reasoning || '',
-        language: result.language || 'Inglés'
-      };
-
-      setEditingItem(finalItem);
-
-      // Append to recent scans history
-      const scanId = Date.now().toString();
-      const newScan = {
-        id: scanId,
-        timestamp: new Date().toISOString(),
-        ...finalItem,
-        confidenceScore: result.confidenceScore || 0.95
-      };
-
-      setScanHistory(prev => {
-        const next = [newScan, ...prev].slice(0, 10);
-        try {
-          localStorage.setItem('scandex_recent_scans', JSON.stringify(next));
-        } catch (e) {
-          console.error("Failed to write scan history:", e);
-        }
-        return next;
-      });
-
-      setIsScanOpen(false);
-      setIsResultOpen(true);
-      setTextQuery(''); // reset query
-    } catch (err: any) {
-      console.error("AI text search failed:", err);
-      setScannerError(`Error de búsqueda: ${err.message || 'Inténtalo de nuevo'}`);
-    } finally {
-      setIsScanning(false);
-    }
-  };
-
   // Save Inventory Item
   const handleSaveItem = async () => {
     if (!editingItem.name || !editingItem.set) {
@@ -888,7 +612,6 @@ export default function PokemonTCG() {
       }
 
       setIsResultOpen(false);
-      setScanPreview(null);
       // Reset editing item
       setEditingItem({
         type: 'card',
@@ -1023,22 +746,23 @@ export default function PokemonTCG() {
           </Button>
           <Button 
             variant="outline"
+            onClick={() => setIsScanOpen(true)}
+            className="bg-slate-900 text-white hover:bg-slate-800 font-black text-xs uppercase tracking-tighter h-10 px-4 flex items-center gap-2 shadow-lg shadow-slate-900/20 group animate-in slide-in-from-right duration-500"
+          >
+            <div className="relative">
+              <Smartphone className="w-4 h-4" />
+              <Sparkles className="absolute -top-1.5 -right-1.5 w-2.5 h-2.5 text-yellow-400 animate-pulse" />
+            </div>
+            Scandex AI
+          </Button>
+          <Button 
+            variant="outline"
             onClick={() => setIsMonPriceOpen(true)}
             className="border-indigo-500/30 text-indigo-500 hover:bg-indigo-500/10 font-bold text-xs uppercase tracking-wider h-10 px-3 flex items-center gap-2 shadow-sm"
             title="Importar precios desde MonPrice (JSON/CSV)"
           >
             <RefreshCw className="w-3.5 h-3.5" /> 
             Importar MonPrice
-          </Button>
-          <Button 
-            onClick={() => {
-              setIsScanOpen(true);
-              setScanPreview(null);
-              setScannerError(null);
-            }}
-            className="bg-yellow-500 hover:bg-yellow-600 text-slate-900 font-black uppercase text-xs tracking-wider h-10 px-4 flex items-center gap-2 shadow-lg hover:shadow-yellow-500/25"
-          >
-            <Sparkles className="w-4 h-4" /> Escanear Carta o Caja
           </Button>
           <Button 
             variant="outline"
@@ -1070,7 +794,7 @@ export default function PokemonTCG() {
       <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
         <Card className="border-none shadow-sm bg-card xs:col-span-1">
           <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-3 bg-blue-100 dark:bg-blue-950/50 rounded-xl text-blue-600 dark:text-blue-400 shrink-0">
+            <div className="p-3 bg-blue-100  rounded-xl text-blue-600  shrink-0">
               <Layers className="w-6 h-6" />
             </div>
             <div>
@@ -1083,7 +807,7 @@ export default function PokemonTCG() {
 
         <Card className="border-none shadow-sm bg-card xs:col-span-1">
           <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-3 bg-yellow-100 dark:bg-yellow-950/50 rounded-xl text-yellow-600 dark:text-yellow-400 shrink-0">
+            <div className="p-3 bg-yellow-100  rounded-xl text-yellow-600  shrink-0">
               <TrendingUp className="w-6 h-6" />
             </div>
             <div>
@@ -1096,26 +820,26 @@ export default function PokemonTCG() {
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm bg-card bg-emerald-50/20 dark:bg-emerald-950/10 xs:col-span-1">
+        <Card className="border-none shadow-sm bg-card bg-emerald-50/20  xs:col-span-1">
           <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-3 bg-emerald-100 dark:bg-emerald-950/50 rounded-xl text-emerald-600 dark:text-emerald-400 shrink-0">
+            <div className="p-3 bg-emerald-100  rounded-xl text-emerald-600  shrink-0">
               <Coins className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-[10px] sm:text-xs font-bold text-emerald-600/80 dark:text-emerald-400 uppercase tracking-wider">Valor Equiv. (COP)</p>
-              <h3 className="text-lg sm:text-xl font-black mt-1 text-emerald-600 dark:text-emerald-400">{fmt(stats.totalCop)}</h3>
+              <p className="text-[10px] sm:text-xs font-bold text-emerald-600/80  uppercase tracking-wider">Valor Equiv. (COP)</p>
+              <h3 className="text-lg sm:text-xl font-black mt-1 text-emerald-600 ">{fmt(stats.totalCop)}</h3>
               <p className="text-[10px] text-muted-foreground mt-0.5">Tasa USDT: {fmt(usdtRate)}</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-sm bg-card bg-blue-50/20 dark:bg-blue-950/10 xs:col-span-1">
+        <Card className="border-none shadow-sm bg-card bg-blue-50/20  xs:col-span-1">
           <CardContent className="p-4 flex items-center gap-4">
             <div className={cn(
               "p-3 rounded-xl shrink-0",
               stats.totalInvestedUsd > 0 
-                ? (stats.roiPct >= 0 ? "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400" : "bg-rose-100 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400")
-                : "bg-blue-100 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400"
+                ? (stats.roiPct >= 0 ? "bg-emerald-100  text-emerald-600 " : "bg-rose-100  text-rose-600 ")
+                : "bg-blue-100  text-blue-600 "
             )}>
               <Coins className="w-6 h-6" />
             </div>
@@ -1129,7 +853,7 @@ export default function PokemonTCG() {
                   <div className="flex flex-wrap items-center gap-1 mt-0.5">
                     <span className={cn(
                       "text-[9px] font-black uppercase tracking-wider px-1 py-0.5 rounded",
-                      stats.roiPct >= 0 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                      stats.roiPct >= 0 ? "bg-emerald-500/10 text-emerald-600 " : "bg-rose-500/10 text-rose-600 "
                     )}>
                       {stats.roiPct >= 0 ? '+' : ''}{stats.roiPct.toFixed(0)}%
                     </span>
@@ -1150,7 +874,7 @@ export default function PokemonTCG() {
 
         <Card className="border-none shadow-sm bg-card xs:col-span-2 lg:col-span-1">
           <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-3 bg-slate-100 dark:bg-slate-900 rounded-xl text-slate-600 shrink-0">
+            <div className="p-3 bg-slate-100  rounded-xl text-slate-600 shrink-0">
               <ShoppingBag className="w-6 h-6" />
             </div>
             <div>
@@ -1389,7 +1113,7 @@ export default function PokemonTCG() {
                         onClick={() => handleEditClick(item)}
                         className="h-7 w-7 rounded-full bg-background/90 text-foreground border border-border shadow-sm"
                       >
-                        <Edit className="w-3 h-3 text-slate-700 dark:text-slate-300" />
+                        <Edit className="w-3 h-3 text-slate-700 " />
                       </Button>
                       <Button 
                         size="icon" 
@@ -1537,7 +1261,7 @@ export default function PokemonTCG() {
           {/* Table View */}
           {!loading && viewMode === 'table' && filteredInventory.length > 0 && (
             <div className="rounded-lg border border-border overflow-x-auto w-full">
-              <Table>
+              <Table className="min-w-[1000px]">
                 <TableHeader className="bg-muted/40">
                   <TableRow className="border-border">
                     <TableHead className="w-16">Item</TableHead>
@@ -1700,550 +1424,6 @@ export default function PokemonTCG() {
         </CardContent>
       </Card>
 
-      {/* AI scanner Dialog */}
-      <Dialog open={isScanOpen} onOpenChange={(open) => {
-        setIsScanOpen(open);
-        if (!open) stopCamera();
-      }}>
-        <DialogContent className="max-w-4xl md:max-w-5xl xl:max-w-6xl bg-card border-none shadow-2xl p-4 sm:p-5 md:p-6 overflow-y-auto max-h-[95vh] md:max-h-[90vh]">
-          <style>{`
-            @keyframes scan-laser {
-              0% { top: 4%; opacity: 0.3; }
-              50% { top: 96%; opacity: 1; }
-              100% { top: 4%; opacity: 0.3; }
-            }
-            .scandex-laser {
-              animation: scan-laser 2.2s infinite ease-in-out;
-            }
-            @keyframes pulse-ring {
-              0% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0.4); }
-              70% { box-shadow: 0 0 0 10px rgba(234, 179, 8, 0); }
-              100% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0); }
-            }
-            .scandex-pulse-ring {
-              animation: pulse-ring 2s infinite;
-            }
-          `}</style>
-
-          <DialogHeader className="pb-3 border-b border-border/60">
-            <DialogTitle className="text-xl font-black uppercase tracking-tight flex items-center justify-between gap-2">
-              <span className="flex items-center gap-2 text-foreground">
-                <Zap className="w-5 h-5 text-yellow-500 fill-yellow-500 animate-pulse" /> SCANDEX <span className="text-yellow-500 font-medium text-xs lowercase tracking-normal">by AI Studio</span>
-              </span>
-              <Badge variant="outline" className="text-[9px] font-black tracking-wider uppercase bg-yellow-500/10 border-yellow-500/30 text-yellow-500 px-2 py-0.5">
-                Scanner TCG Pro
-              </Badge>
-            </DialogTitle>
-            <DialogDescription className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground mt-1">
-              Escanea con tu cámara, sube un archivo o busca por texto para valorar tus artículos al instante.
-            </DialogDescription>
-          </DialogHeader>
-
-          {/* Grid Layout optimized for Mobile (single col) & MacBook Air (2 columns) */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 pt-3">
-            
-            {/* COLUMN 1: ACTIVE SCANNER INTERFACE (Span 7) */}
-            <div className="lg:col-span-7 space-y-4 flex flex-col justify-between">
-              
-              {/* Tabs */}
-              <div className="grid grid-cols-3 bg-muted/25 p-1 rounded-xl border border-border/40 gap-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab('camera');
-                    startCamera(cameraFacing);
-                  }}
-                  className={cn(
-                    "py-2 px-1 text-[9px] min-[375px]:text-[10px] sm:text-xs font-black uppercase tracking-wider text-center rounded-lg transition-all flex items-center justify-center gap-1 sm:gap-1.5",
-                    activeTab === 'camera' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-card/45'
-                  )}
-                >
-                  <Camera className="w-3.5 h-3.5 text-yellow-500 shrink-0" />
-                  <span className="truncate">Cámara</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab('upload');
-                    stopCamera();
-                  }}
-                  className={cn(
-                    "py-2 px-1 text-[9px] min-[375px]:text-[10px] sm:text-xs font-black uppercase tracking-wider text-center rounded-lg transition-all flex items-center justify-center gap-1 sm:gap-1.5",
-                    activeTab === 'upload' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-card/45'
-                  )}
-                >
-                  <Upload className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                  <span className="truncate">Archivo</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab('text');
-                    stopCamera();
-                  }}
-                  className={cn(
-                    "py-2 px-1 text-[9px] min-[375px]:text-[10px] sm:text-xs font-black uppercase tracking-wider text-center rounded-lg transition-all flex items-center justify-center gap-1 sm:gap-1.5",
-                    activeTab === 'text' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-card/45'
-                  )}
-                >
-                  <Search className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                  <span className="truncate">Texto</span>
-                </button>
-              </div>
-
-              {/* TAB CONTENT */}
-              <div className="flex-1 flex flex-col justify-center min-h-[250px] sm:min-h-[300px]">
-                
-                {/* 1. Camera Tab */}
-                {activeTab === 'camera' && !scanPreview && (
-                  <div className="relative aspect-[4/3] w-full bg-black rounded-xl overflow-hidden border border-border shadow-inner flex flex-col justify-center">
-                    {cameraActive ? (
-                      <>
-                        <video 
-                          ref={videoRef} 
-                          autoPlay 
-                          playsInline 
-                          className="w-full h-full object-cover"
-                        />
-                        
-                        {/* SCANDEX TARGET SCAN GUIDE FRAME: 2:3 card ratio */}
-                        <div className="absolute inset-0 pointer-events-none flex items-center justify-center bg-black/40">
-                          <div className="relative w-44 sm:w-52 aspect-[2.5/3.5] rounded-xl border-2 border-yellow-500/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.6)] flex items-center justify-center">
-                            
-                            {/* Scanning moving laser line */}
-                            <div className="absolute left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-yellow-400 to-transparent shadow-[0_0_8px_rgba(234,179,8,1)] scandex-laser" />
-                            
-                            {/* Card position guides corners */}
-                            <div className="absolute -top-1.5 -left-1.5 w-4 h-4 border-t-4 border-l-4 border-yellow-400 rounded-tl" />
-                            <div className="absolute -top-1.5 -right-1.5 w-4 h-4 border-t-4 border-r-4 border-yellow-400 rounded-tr" />
-                            <div className="absolute -bottom-1.5 -left-1.5 w-4 h-4 border-b-4 border-l-4 border-yellow-400 rounded-bl" />
-                            <div className="absolute -bottom-1.5 -right-1.5 w-4 h-4 border-b-4 border-r-4 border-yellow-400 rounded-br" />
-                            
-                            <p className="absolute bottom-2 text-[8px] font-black uppercase text-center w-full text-yellow-400/90 tracking-widest bg-black/60 py-0.5 px-1 rounded">
-                              Centrar Carta
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Camera Floating HUD Overlay controls */}
-                        <div className="absolute top-3 right-3 flex flex-col gap-2 pointer-events-auto">
-                          <Button 
-                            onClick={toggleCameraFacing}
-                            size="icon"
-                            variant="secondary"
-                            className="w-8 h-8 rounded-full bg-slate-900/80 hover:bg-slate-900 text-white border border-white/10 shadow-md backdrop-blur-sm"
-                            title="Cambiar Cámara"
-                          >
-                            <RefreshCw className="w-4 h-4" />
-                          </Button>
-                        </div>
-
-                        {/* Capture HUD bottom */}
-                        <div className="absolute bottom-4 inset-x-0 flex items-center justify-center gap-3">
-                          <Button 
-                            onClick={capturePhoto}
-                            size="default"
-                            className="bg-yellow-500 hover:bg-yellow-600 text-slate-900 rounded-full font-black uppercase px-6 text-xs h-10 tracking-wider shadow-lg flex items-center gap-2 border-2 border-background scandex-pulse-ring"
-                          >
-                            <Camera className="w-4 h-4" /> Capturar Carta
-                          </Button>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center text-xs font-bold text-muted-foreground uppercase text-center p-6 space-y-3">
-                        <div className="w-12 h-12 bg-muted/10 rounded-full flex items-center justify-center border border-border">
-                          <Camera className="w-5 h-5 text-yellow-500/80 animate-pulse" />
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-foreground font-black">Esperando acceso a la cámara</p>
-                          <p className="text-[10px] text-muted-foreground max-w-xs">Concede los permisos en tu navegador para usar el scanner interactivo.</p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* 2. Upload Tab */}
-                {activeTab === 'upload' && !scanPreview && (
-                  <div className="border-2 border-dashed border-border/80 rounded-xl p-8 text-center bg-muted/10 hover:bg-yellow-500/5 hover:border-yellow-500/40 transition-all cursor-pointer relative min-h-[220px] flex flex-col items-center justify-center">
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      onChange={handleFileUpload}
-                      className="absolute inset-0 opacity-0 cursor-pointer"
-                    />
-                    <div className="w-14 h-14 bg-background rounded-full flex items-center justify-center mb-3 shadow-md text-yellow-500 border border-border">
-                      <Upload className="w-6 h-6" />
-                    </div>
-                    <p className="text-xs font-black uppercase text-foreground">Arrastra o Selecciona un Archivo</p>
-                    <p className="text-[9px] text-muted-foreground uppercase mt-1 max-w-xs leading-relaxed">Soporta JPG y PNG. Ideal si estás en tu Mac Air y tienes fotos en el escritorio.</p>
-                    <div className="mt-4 flex gap-1 items-center justify-center">
-                      <Badge variant="outline" className="text-[8px] font-mono text-muted-foreground uppercase">Drag & Drop listo</Badge>
-                    </div>
-                  </div>
-                )}
-
-                {/* 3. Text Search Tab */}
-                {activeTab === 'text' && (
-                  <div className="space-y-3 bg-muted/10 p-5 rounded-xl border border-border">
-                    <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground uppercase font-black tracking-wider">
-                      <Info className="w-3.5 h-3.5 text-yellow-500" />
-                      <span>Escribe los detalles para que la IA localice el artículo y sugiera un precio</span>
-                    </div>
-                    <div className="flex flex-col gap-2.5">
-                      <div className="relative">
-                        <Input
-                          placeholder="ej: Charizard ex 199/165, Booster Box 151..."
-                          value={textQuery}
-                          onChange={(e) => setTextQuery(e.target.value)}
-                          className="h-11 text-xs font-bold uppercase placeholder:text-muted-foreground/50 border-border pr-10"
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              analyzeItemByText();
-                            }
-                          }}
-                        />
-                        {isSearchingSuggestions && (
-                          <div className="absolute right-3 top-3.5">
-                            <RefreshCw className="w-4 h-4 animate-spin text-yellow-500" />
-                          </div>
-                        )}
-
-                        {/* Real-time Autocomplete Suggestions Dropdown */}
-                        {suggestions.length > 0 && (
-                          <div className="absolute left-0 right-0 top-12 z-50 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl max-h-72 overflow-y-auto overflow-x-hidden p-2 space-y-1">
-                            <p className="text-[9px] font-black uppercase text-muted-foreground/70 px-2 py-1 tracking-wider border-b border-border/20 mb-1.5 flex items-center justify-between">
-                              <span>Sugerencias de Cartas Pokémon</span>
-                              <span className="text-[8px] font-bold text-yellow-500 animate-pulse">Selecciona para cargar</span>
-                            </p>
-                            {suggestions.map((card) => (
-                              <button
-                                key={card.id}
-                                type="button"
-                                onClick={() => {
-                                  const finalItem: Partial<PokemonItem> = {
-                                    type: card.type,
-                                    name: card.name,
-                                    set: card.set,
-                                    cardNumber: card.cardNumber,
-                                    rarity: card.rarity,
-                                    marketPrice: card.marketPrice,
-                                    imageUrl: card.imageUrl,
-                                    quantity: 1,
-                                    condition: card.type === 'sealed' ? 'Sealed' : 'NM',
-                                    notes: `Identificado con precisión mediante autocompletado inteligente. Expansión: ${card.set}.`,
-                                    language: card.language || 'Inglés'
-                                  };
-                                  setEditingItem(finalItem);
-                                  setOriginalEnglishPrice(card.marketPrice);
-                                  setIsScanOpen(false);
-                                  setIsResultOpen(true);
-                                  setTextQuery('');
-                                  setSuggestions([]);
-                                }}
-                                className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-slate-800 text-left transition-all border border-transparent hover:border-slate-700 group"
-                              >
-                                <div className="w-10 h-14 bg-slate-950 rounded border border-slate-800 overflow-hidden shrink-0 flex items-center justify-center">
-                                  {card.imageUrl ? (
-                                    <img 
-                                      src={convertDirectImageUrl(card.imageUrl)} 
-                                      alt={card.name} 
-                                      className="w-full h-full object-contain transition-transform group-hover:scale-110"
-                                      referrerPolicy="no-referrer"
-                                      onError={(e) => {
-                                        (e.target as any).src = 'https://images.pokemontcg.io/logo.png';
-                                      }}
-                                    />
-                                  ) : (
-                                    <Sparkles className="w-4 h-4 text-muted-foreground" />
-                                  )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center justify-between gap-1">
-                                    <p className="text-xs font-black text-white truncate uppercase group-hover:text-yellow-500 transition-colors">
-                                      {card.name}
-                                    </p>
-                                    <span className="text-[10px] font-black text-emerald-400 shrink-0 font-mono bg-emerald-500/10 px-1.5 py-0.5 rounded">
-                                      ${card.marketPrice?.toFixed(2)}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-1.5 text-[9px] text-slate-400 uppercase font-bold mt-1">
-                                    <span className="truncate max-w-[130px] text-slate-200">{card.set}</span>
-                                    <span>•</span>
-                                    <span className="font-mono text-slate-300">{card.cardNumber}</span>
-                                    {card.rarity && (
-                                      <>
-                                        <span>•</span>
-                                        <span className="text-yellow-500 font-extrabold truncate max-w-[100px]">{card.rarity}</span>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap gap-1.5 py-1">
-                        {['Charizard ex 199/165', 'Pikachu 160/159', 'Mew ex 232/091', 'Gengar VMAX 271/264', '151 Booster Box'].map((suggest) => (
-                          <button
-                            key={suggest}
-                            type="button"
-                            onClick={() => setTextQuery(suggest)}
-                            className="text-[9px] font-bold uppercase px-2 py-1 rounded bg-muted/50 hover:bg-yellow-500/10 hover:text-yellow-500 transition-all border border-border"
-                          >
-                            {suggest}
-                          </button>
-                        ))}
-                      </div>
-                      <Button
-                        onClick={analyzeItemByText}
-                        disabled={isScanning}
-                        className="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-900 font-black uppercase text-xs h-11 tracking-wider flex items-center justify-center gap-2"
-                      >
-                        {isScanning ? (
-                          <>
-                            <RefreshCw className="w-4 h-4 animate-spin" /> Buscando con Gemini...
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="w-4 h-4" /> Buscar con IA TCG
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Captured Preview & Trigger Analysis */}
-                {scanPreview && (
-                  <div className="space-y-4">
-                    <div className="relative aspect-square max-h-60 mx-auto bg-slate-950 rounded-xl overflow-hidden border border-border flex items-center justify-center p-3 shadow-md">
-                      <img 
-                        src={scanPreview} 
-                        alt="Captured preview" 
-                        className="max-h-full max-w-full object-contain rounded-lg"
-                      />
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          setScanPreview(null);
-                          if (activeTab === 'camera') startCamera(cameraFacing);
-                        }}
-                        className="absolute top-2.5 right-2.5 bg-slate-900/90 hover:bg-slate-900 text-white px-3 py-1.5 rounded-full text-[9px] font-black uppercase transition-all border border-white/10 shadow-lg"
-                      >
-                        Reintentar foto
-                      </button>
-
-                      {/* Corner Target Bracket lines for preview */}
-                      <div className="absolute top-3 left-3 w-3 h-3 border-t-2 border-l-2 border-white/30" />
-                      <div className="absolute top-3 right-3 w-3 h-3 border-t-2 border-r-2 border-white/30" />
-                      <div className="absolute bottom-3 left-3 w-3 h-3 border-b-2 border-l-2 border-white/30" />
-                      <div className="absolute bottom-3 right-3 w-3 h-3 border-b-2 border-r-2 border-white/30" />
-                    </div>
-
-                    <Button 
-                      onClick={analyzeItem}
-                      disabled={isScanning}
-                      className="w-full bg-yellow-500 hover:bg-yellow-600 text-slate-900 font-black uppercase text-xs h-11 tracking-wider flex items-center justify-center gap-2"
-                    >
-                      {isScanning ? (
-                        <>
-                          <RefreshCw className="w-4 h-4 animate-spin" /> Analizando con Gemini TCG...
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles className="w-4 h-4" /> Analizar con Gemini & Consultar Precios
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                )}
-              </div>
-
-              {/* Helper status text when scanning */}
-              {isScanning && (
-                <div className="bg-muted/30 border border-border/40 rounded-lg p-3 text-center space-y-1.5 text-slate-400 text-[10px] uppercase font-bold tracking-wider animate-pulse">
-                  {activeTab === 'text' ? (
-                    <>
-                      <p className="text-yellow-500 font-black flex items-center justify-center gap-1"><Sparkles className="w-3.5 h-3.5" /> Procesando búsqueda...</p>
-                      <p className="text-slate-500 text-[9px]">Analizando expansiones y consultando tcgplayer...</p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-yellow-500 font-black flex items-center justify-center gap-1"><Sparkles className="w-3.5 h-3.5" /> Analizando imagen con IA...</p>
-                      <p className="text-slate-500 text-[9px]">Extrayendo nombre de carta, set, número y precios en tiempo real...</p>
-                    </>
-                  )}
-                </div>
-              )}
-
-              {/* Shortcuts badge for Mac Air Users */}
-              {activeTab === 'camera' && cameraActive && !scanPreview && (
-                <div className="hidden sm:flex items-center justify-center gap-1.5 text-[9px] text-muted-foreground uppercase font-black tracking-wide bg-muted/20 p-2 rounded-lg border border-border/40">
-                  <Keyboard className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span>Mac Air Shortcuts:</span>
-                  <kbd className="px-1.5 py-0.5 rounded bg-background border border-border text-[8px] font-mono">[Espacio]</kbd> Capturar • 
-                  <kbd className="px-1.5 py-0.5 rounded bg-background border border-border text-[8px] font-mono">[R]</kbd> Reset • 
-                  <kbd className="px-1.5 py-0.5 rounded bg-background border border-border text-[8px] font-mono">[Enter]</kbd> Analizar
-                </div>
-              )}
-
-              {scannerError && (
-                <div className="p-3 bg-rose-50 border border-rose-100 rounded-lg text-rose-600 text-xs font-bold uppercase flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>{scannerError}</span>
-                </div>
-              )}
-            </div>
-
-            {/* COLUMN 2: SCANDEX HISTORY / SESSION LOGS (Span 5) */}
-            <div className="lg:col-span-5 bg-muted/10 border border-border rounded-xl p-4 flex flex-col h-[380px] lg:h-[460px] min-h-[350px]">
-              <div className="flex items-center justify-between border-b border-border pb-2 mb-3">
-                <div className="flex items-center gap-1.5">
-                  <Smartphone className="w-4 h-4 text-yellow-500" />
-                  <span className="text-xs font-black uppercase tracking-wider text-foreground">Sesión de Escaneo</span>
-                </div>
-                {scanHistory.length > 0 && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      setScanHistory([]);
-                      localStorage.removeItem('scandex_recent_scans');
-                    }}
-                    className="h-6 text-[9px] font-black uppercase text-rose-500 hover:text-rose-600 hover:bg-rose-50 px-2"
-                  >
-                    <Trash2 className="w-3 h-3 mr-1" /> Limpiar
-                  </Button>
-                )}
-              </div>
-
-              {/* History scroll log */}
-              <div className="flex-1 overflow-y-auto space-y-2.5 pr-0.5 scrollbar-thin">
-                {scanHistory.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-2">
-                    <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center text-muted-foreground border border-border/80">
-                      <Smartphone className="w-5 h-5 text-muted-foreground/60" />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-black uppercase text-foreground">Historial vacío</p>
-                      <p className="text-[9px] text-muted-foreground uppercase leading-relaxed max-w-[200px] mx-auto">
-                        Toma fotos o busca con IA para registrar cartas en esta sesión.
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  scanHistory.map((item, index) => {
-                    const isQuickAdded = quickAddedIds[item.id];
-                    return (
-                      <div 
-                        key={item.id} 
-                        className={cn(
-                          "p-2.5 rounded-lg border bg-card hover:bg-muted/10 transition-all flex items-center gap-3 relative overflow-hidden group",
-                          isQuickAdded ? "border-emerald-500/30 bg-emerald-500/[0.02]" : "border-border"
-                        )}
-                      >
-                        {/* Thumbnail or Ball icon */}
-                        <div className="w-12 h-16 bg-muted/30 rounded border border-border flex items-center justify-center overflow-hidden shrink-0">
-                          {item.imageUrl ? (
-                            <img 
-                              src={convertDirectImageUrl(item.imageUrl)} 
-                              alt={item.name} 
-                              className="w-full h-full object-contain"
-                              referrerPolicy="no-referrer"
-                            />
-                          ) : (
-                            <div className="text-lg">⭐</div>
-                          )}
-                        </div>
-
-                        {/* Card metadata */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1 mb-0.5">
-                            <span className="text-[9px] font-black font-mono text-muted-foreground uppercase">{item.cardNumber || 'Sealed'}</span>
-                            <span className="text-[8px] font-black uppercase px-1 rounded bg-blue-100 text-blue-700 text-[8px]">
-                              {item.language || 'Inglés'}
-                            </span>
-                          </div>
-                          <h4 className="text-[11px] font-black uppercase tracking-tight text-foreground line-clamp-1">{item.name}</h4>
-                          <p className="text-[9px] text-muted-foreground uppercase truncate font-bold">{item.set}</p>
-                          
-                          {/* Valuation price info */}
-                          <div className="mt-1 flex flex-col gap-0">
-                             <div className="flex items-center gap-1.5">
-                              <span className="text-xs font-black text-amber-500 font-mono">${(item.marketPrice || 0).toFixed(2)}</span>
-                              <span className="text-[9px] text-emerald-600 font-black font-mono">({fmt((item.marketPrice || 0) * usdtRate)})</span>
-                            </div>
-                            {item.collectrPrice ? (
-                              <div className="flex items-center gap-1">
-                                <span className="text-[9px] font-black text-indigo-500 font-mono">${item.collectrPrice.toFixed(2)} (C)</span>
-                                <span className="text-[8px] text-indigo-400 font-bold font-mono">({fmt(item.collectrPrice * usdtRate)})</span>
-                              </div>
-                            ) : null}
-                          </div>
-                        </div>
-
-                        {/* Hover Overlay Action Triggers (Quick add vs Configure) */}
-                        <div className="flex items-center gap-1.5 shrink-0 z-10">
-                          {isQuickAdded ? (
-                            <div className="h-7 px-2.5 rounded-full bg-emerald-500/10 text-emerald-500 text-[9px] font-black uppercase flex items-center gap-1 border border-emerald-500/20">
-                              <Check className="w-3.5 h-3.5" /> OK
-                            </div>
-                          ) : (
-                            <>
-                              <Button
-                                size="icon"
-                                variant="outline"
-                                onClick={() => addScannedItemToCollectionDirectly(item.id, item)}
-                                className="h-7 w-7 rounded-full bg-emerald-500/10 hover:bg-emerald-500 hover:text-white text-emerald-500 border-emerald-500/20 shadow-sm transition-colors"
-                                title="Agregar Directo"
-                              >
-                                <Plus className="w-3.5 h-3.5" />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="outline"
-                                onClick={() => {
-                                  setEditingItem(item);
-                                  setOriginalEnglishPrice(item.marketPrice);
-                                  setIsScanOpen(false);
-                                  setIsResultOpen(true);
-                                }}
-                                className="h-7 w-7 rounded-full bg-muted border-border hover:bg-foreground hover:text-background"
-                                title="Editar & Agregar"
-                              >
-                                <Edit className="w-3.5 h-3.5" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-
-              {/* Scandex Collection Valuation stats */}
-              <div className="border-t border-border pt-2.5 mt-3 text-center space-y-1">
-                <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest">
-                  Total Sesión ({scanHistory.length} cartas)
-                </p>
-                <div className="flex items-center justify-center gap-2">
-                  <span className="text-sm font-black text-amber-500 font-mono">
-                    ${scanHistory.reduce((sum, i) => sum + (Number(i.marketPrice) || 0), 0).toFixed(2)} USD
-                  </span>
-                  <span className="text-xs text-emerald-600 font-black font-mono">
-                    ({fmt(scanHistory.reduce((sum, i) => sum + (Number(i.marketPrice) || 0), 0) * usdtRate)})
-                  </span>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </DialogContent>
-      </Dialog>
-
       {/* Manual / Scan Edit result Dialog */}
       <Dialog open={isResultOpen} onOpenChange={setIsResultOpen}>
         <DialogContent className="max-w-lg bg-card border-none shadow-2xl overflow-y-auto max-h-[90vh]">
@@ -2387,7 +1567,7 @@ export default function PokemonTCG() {
                   </div>
 
                   <div className="space-y-1">
-                    <Label className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400">Precio Collectr (USD)</Label>
+                    <Label className="text-[10px] font-black uppercase text-indigo-600 ">Precio Collectr (USD)</Label>
                     <div className="relative">
                       <span className="absolute left-2.5 top-1.5 text-xs text-muted-foreground">$</span>
                       <Input 
@@ -2396,7 +1576,7 @@ export default function PokemonTCG() {
                         placeholder="0.00"
                         value={editingItem.collectrPrice !== undefined && editingItem.collectrPrice !== null ? editingItem.collectrPrice : ''}
                         onChange={(e) => setEditingItem(prev => ({ ...prev, collectrPrice: e.target.value ? Number(e.target.value) : null }))}
-                        className="h-8 text-xs font-bold pl-6 font-mono bg-background text-indigo-600 dark:text-indigo-400"
+                        className="h-8 text-xs font-bold pl-6 font-mono bg-background text-indigo-600 "
                       />
                     </div>
                     {editingItem.collectrPrice ? (
@@ -2540,7 +1720,7 @@ export default function PokemonTCG() {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!deleteConfirmation} onOpenChange={(open) => !open && setDeleteConfirmation(null)}>
-        <DialogContent className="max-w-md bg-card border-none shadow-2xl p-6">
+        <DialogContent className="max-w-md bg-card border-none shadow-2xl p-6 max-h-[90vh] overflow-y-auto">
           <DialogHeader className="pb-3 border-b border-border/60">
             <DialogTitle className="text-lg font-black uppercase tracking-tight flex items-center gap-2 text-rose-500">
               <Trash2 className="w-5 h-5" />
@@ -2558,18 +1738,18 @@ export default function PokemonTCG() {
               Esta acción no se puede deshacer y el artículo se borrará de forma definitiva de la base de datos de Firestore.
             </p>
           </div>
-          <DialogFooter className="gap-2 pt-3 border-t border-border/60">
+          <DialogFooter className="gap-3 pt-3 border-t border-border/60 flex-col sm:flex-row">
             <Button 
               variant="outline" 
               onClick={() => setDeleteConfirmation(null)}
-              className="text-xs font-bold uppercase"
+              className="text-xs font-bold uppercase h-12 sm:h-10"
             >
               Cancelar
             </Button>
             <Button 
               onClick={confirmDelete}
               variant="destructive"
-              className="text-xs font-black uppercase tracking-wider animate-pulse hover:animate-none"
+              className="text-xs font-black uppercase tracking-wider h-12 sm:h-10 animate-pulse hover:animate-none"
             >
               Eliminar Permanentemente
             </Button>
@@ -2586,6 +1766,156 @@ export default function PokemonTCG() {
           console.log("Importación de MonPrice completada.");
         }}
       />
+
+      {/* AI Scanner Dialog */}
+      <Dialog 
+        open={isScanOpen} 
+        onOpenChange={(open) => {
+          setIsScanOpen(open);
+          if (!open) stopCamera();
+        }}
+      >
+        <DialogContent className="sm:max-w-md bg-white text-slate-950 border-none shadow-2xl p-0 overflow-hidden rounded-[2rem] max-h-[90vh] overflow-y-auto">
+          <div className="p-6">
+            <DialogHeader className="mb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <DialogTitle className="text-xl font-black uppercase tracking-tight flex items-center gap-2 text-indigo-600">
+                    <Sparkles className="w-5 h-5" /> SCANDEX AUTO
+                  </DialogTitle>
+                  <DialogDescription className="text-[10px] uppercase font-bold tracking-widest text-slate-500">
+                    Detección Automática de Cartas
+                  </DialogDescription>
+                </div>
+                <Badge className="bg-indigo-500/10 text-indigo-600 border-none text-[9px] font-black uppercase">IA ACTIVE</Badge>
+              </div>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              {/* Camera Preview / Captured Image */}
+              <div className="relative aspect-video bg-slate-100 rounded-2xl overflow-hidden border border-slate-200 shadow-inner group">
+                {!capturedImage ? (
+                  <>
+                    <video 
+                      ref={videoRef} 
+                      autoPlay 
+                      playsInline 
+                      className={cn("w-full h-full object-cover", !cameraActive && "hidden")}
+                    />
+                    {!cameraActive && (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                        <div className="w-16 h-16 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-600 animate-pulse">
+                          <Smartphone className="w-8 h-8" />
+                        </div>
+                        <Button 
+                          onClick={startCamera}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase tracking-wider rounded-full px-6"
+                        >
+                          Activar Cámara
+                        </Button>
+                      </div>
+                    )}
+                    {cameraActive && (
+                      <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
+                        <div className="w-48 h-64 border-2 border-indigo-500/50 rounded-xl relative shadow-[0_0_0_9999px_rgba(255,255,255,0.4)]">
+                          <div className="absolute -top-1 -left-1 w-4 h-4 border-t-2 border-l-2 border-indigo-600" />
+                          <div className="absolute -top-1 -right-1 w-4 h-4 border-t-2 border-r-2 border-indigo-600" />
+                          <div className="absolute -bottom-1 -left-1 w-4 h-4 border-b-2 border-l-2 border-indigo-600" />
+                          <div className="absolute -bottom-1 -right-1 w-4 h-4 border-b-2 border-r-2 border-indigo-600" />
+                          
+                          {/* Animated Scan line */}
+                          <div className="absolute top-0 left-0 w-full h-[2px] bg-indigo-600 shadow-[0_0_8px_rgba(79,70,229,1)] animate-scan-laser-poke" />
+                        </div>
+                        
+                        <div className="mt-4 flex flex-col items-center gap-2">
+                          <Badge className="bg-emerald-500 text-white border-none animate-pulse px-3 py-1 text-[10px] font-black uppercase">
+                            Escaneando automáticamente...
+                          </Badge>
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 bg-white/80 px-3 py-1 rounded-full backdrop-blur-sm shadow-sm">
+                            Mantén la carta quieta
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <img 
+                    src={capturedImage} 
+                    alt="Captura" 
+                    className="w-full h-full object-cover"
+                  />
+                )}
+                
+                {isSearching && (
+                  <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center gap-4 z-20">
+                    <div className="relative">
+                      <RefreshCw className="w-12 h-12 text-indigo-600 animate-spin" />
+                      <Sparkles className="absolute -top-1 -right-1 w-5 h-5 text-indigo-400 animate-pulse" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-black uppercase tracking-tighter text-slate-900">Identificando con IA...</p>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-indigo-600/60 mt-1">Detectando set y valor de mercado</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {scanError && (
+                <div className="bg-rose-50 border border-rose-100 rounded-xl p-3 flex items-start gap-3">
+                  <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                  <p className="text-[11px] font-bold text-rose-600 uppercase tracking-tight leading-snug">{scanError}</p>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                {cameraActive && (
+                  <Button 
+                    onClick={capturePhoto}
+                    disabled={isSearching}
+                    className="flex-1 h-14 bg-indigo-600 text-white hover:bg-indigo-700 font-black uppercase tracking-tighter rounded-2xl text-lg shadow-[0_4px_0_rgb(67,56,202)] active:translate-y-1 active:shadow-none transition-all flex items-center justify-center gap-2"
+                  >
+                    <Camera className="w-5 h-5" /> ESCANEAR AHORA
+                  </Button>
+                )}
+                {!cameraActive && capturedImage && (
+                  <Button 
+                    onClick={() => {
+                      setCapturedImage(null);
+                      startCamera();
+                    }}
+                    disabled={isSearching}
+                    variant="outline"
+                    className="flex-1 h-12 border-slate-200 hover:bg-slate-50 text-slate-950 font-black uppercase tracking-wider rounded-xl"
+                  >
+                    <RefreshCw className="w-4 h-4 mr-2" /> Reintentar
+                  </Button>
+                )}
+                <Button 
+                  onClick={() => setIsScanOpen(false)}
+                  disabled={isSearching}
+                  variant="ghost"
+                  className="h-12 text-slate-500 hover:text-slate-950 font-bold uppercase tracking-widest px-6"
+                >
+                  Cerrar
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 pt-2">
+                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
+                    <Info className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 block">Modo Auto</span>
+                    <p className="text-[11px] font-medium text-slate-700 leading-tight">La IA detectará la carta automáticamente cada 3 segundos.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <canvas ref={canvasRef} className="hidden" />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

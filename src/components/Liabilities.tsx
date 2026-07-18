@@ -684,7 +684,7 @@ export default function Liabilities() {
           })}
         </div>
       ) : (
-        <div className="text-center py-16 bg-white border border-slate-100 rounded-3xl space-y-3 dark:border-slate-800">
+        <div className="text-center py-16 bg-white border border-slate-100 rounded-3xl space-y-3 ">
           <TrendingDown className="w-12 h-12 text-slate-300 mx-auto" />
           <h4 className="text-base font-black text-slate-950 uppercase tracking-widest">No hay obligaciones para mostrar</h4>
           <p className="text-xs text-slate-400 max-w-sm mx-auto">Prueba cambiando tu búsqueda o filtro por estado para visualizar el historial, o bien agrega una nueva obligación si correspondiere.</p>

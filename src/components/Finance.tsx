@@ -665,7 +665,7 @@ export default function Finance() {
             <CardContent className="p-4 flex justify-between items-center">
               <div>
                 <p className="text-[10px] font-black uppercase text-amber-600 tracking-widest">Cuentas por Cobrar</p>
-                <h3 className="text-xl font-black text-amber-700 dark:text-amber-500">{fmt(totalDebts)}</h3>
+                <h3 className="text-xl font-black text-amber-700 ">{fmt(totalDebts)}</h3>
               </div>
               <CreditCard className="w-8 h-8 text-amber-500/20" />
             </CardContent>
@@ -674,7 +674,7 @@ export default function Finance() {
             <CardContent className="p-4 flex justify-between items-center">
               <div>
                 <p className="text-[10px] font-black uppercase text-rose-600 tracking-widest">Pasivos (Deudas)</p>
-                <h3 className="text-xl font-black text-rose-700 dark:text-rose-500">{fmt(totalLiabilities)}</h3>
+                <h3 className="text-xl font-black text-rose-700 ">{fmt(totalLiabilities)}</h3>
               </div>
               <TrendingDown className="w-8 h-8 text-rose-500/20" />
             </CardContent>

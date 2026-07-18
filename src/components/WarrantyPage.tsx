@@ -105,7 +105,7 @@ export default function WarrantyPage() {
         {/* Certificate Header */}
         <Card className="border-none shadow-sm overflow-hidden bg-secondary text-secondary-foreground">
           <CardContent className="p-8 text-center sm:text-left flex flex-col sm:flex-row items-center gap-6">
-            <div className="bg-white p-3 rounded-2xl dark:bg-slate-100">
+            <div className="bg-white p-3 rounded-2xl ">
               <Logo size="lg" />
             </div>
             <div className="space-y-1">
@@ -147,7 +147,7 @@ export default function WarrantyPage() {
               {product.warrantyMonths ? (
                 <div className="p-3 bg-blue-500/10 rounded-lg border border-blue-500/20 mt-2">
                    <div className="text-[10px] uppercase font-bold text-blue-500">Garantía Limitada</div>
-                   <div className="text-sm font-black text-blue-600 dark:text-blue-400">{product.warrantyMonths} MESES</div>
+                   <div className="text-sm font-black text-blue-600 ">{product.warrantyMonths} MESES</div>
                    {product.warrantyExpiration && (
                      <div className="text-[9px] font-bold text-blue-500/70 mt-1 uppercase">VENCE: {product.warrantyExpiration}</div>
                    )}

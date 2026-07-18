@@ -8,11 +8,9 @@ import { useData } from '../context/AppDataContext';
 import { useCloudinary } from '../hooks/useCloudinary';
 import { Building2, ShieldCheck, Camera, Save, RefreshCcw, Image as ImageIcon, Moon, Sun } from 'lucide-react';
 import { motion } from 'motion/react';
-import { useTheme } from '../hooks/useTheme';
 
 export default function Settings() {
   const { data, updateSettings } = useData();
-  const { theme, toggleTheme } = useTheme();
   const { uploadImage, uploading: cloudUploading } = useCloudinary();
   const [formData, setFormData] = useState({
     companyName: '',
@@ -76,23 +74,6 @@ export default function Settings() {
           <p className="text-muted-foreground font-medium">Personaliza la información de tu empresa y garantía</p>
         </div>
       </div>
-
-      {/* Appearance Quick Toggle */}
-      <Card className="border-none shadow-premium bg-card">
-        <CardContent className="p-6 flex items-center justify-between">
-          <div className="space-y-1">
-            <h3 className="font-black uppercase tracking-tight text-foreground">Apariencia</h3>
-            <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest">Alternar entre modo claro y oscuro</p>
-          </div>
-          <Button 
-            variant="outline" 
-            onClick={toggleTheme}
-            className="rounded-full w-14 h-14 border-2 hover:bg-accent transition-all"
-          >
-            {theme === 'dark' ? <Sun className="w-6 h-6 text-amber-400" /> : <Moon className="w-6 h-6 text-blue-600" />}
-          </Button>
-        </CardContent>
-      </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Company Info */}

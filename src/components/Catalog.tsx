@@ -48,7 +48,7 @@ export const getProductWarranty = (p: Product) => {
         short: "🍏 1 Año Apple Directo",
         long: "1 Año Garantía Directa Apple",
         description: "Equipo original nuevo o con garantía vigente de Apple. Cobertura oficial de Apple de un año a nivel mundial.",
-        badgeColor: "bg-[#f15a24]/10 text-[#f15a24] dark:bg-[#f15a24]/20 dark:text-[#f15a24]"
+        badgeColor: "bg-[#f15a24]/10 text-[#f15a24]  "
       };
     } else {
       const months = p.warrantyMonths || 3;
@@ -56,7 +56,7 @@ export const getProductWarranty = (p: Product) => {
         short: `🛡️ ${months} Meses Garantía Premium`,
         long: `Garantía Premium de ${months} Meses`,
         description: `iPhone certificado con batería testeada. Incluye ${months} meses de garantía con cobertura técnica y soporte post-venta de confianza.`,
-        badgeColor: "bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400"
+        badgeColor: "bg-blue-50 text-blue-700  "
       };
     }
   }
@@ -67,7 +67,7 @@ export const getProductWarranty = (p: Product) => {
     short: `🛡️ ${months} Meses Garantía`,
     long: `Garantía de ${months} Meses`,
     description: `Este artículo cuenta con ${months} meses de garantía local y de nuestra marca con cobertura de soporte técnico ante cualquier imperfección.`,
-    badgeColor: "bg-slate-50 text-slate-700 dark:bg-slate-900/45 dark:text-slate-300"
+    badgeColor: "bg-slate-50 text-slate-700  "
   };
 };
 
@@ -577,7 +577,7 @@ export default function Catalog() {
                                         onMouseEnter={() => setActiveImageIndex(i)}
                                         className={cn(
                                             "w-11 h-11 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-lg sm:rounded-xl overflow-hidden border-2 transition-all p-0.5 shrink-0 bg-white shadow-xs focus:outline-none",
-                                            activeImageIndex === i ? "border-slate-800 dark:border-slate-200 scale-105" : "border-slate-100 hover:border-slate-300 dark:border-slate-700 opacity-60 hover:opacity-100"
+                                            activeImageIndex === i ? "border-slate-800  scale-105" : "border-slate-100 hover:border-slate-300  opacity-60 hover:opacity-100"
                                         )}
                                         aria-label={`Ver imagen ${i + 1}`}
                                     >
@@ -632,13 +632,13 @@ export default function Catalog() {
                                 <>
                                     <button 
                                         onClick={() => setActiveImageIndex(prev => prev > 0 ? prev - 1 : selectedProduct.images!.length - 1)}
-                                        className="absolute left-2.5 top-1/2 -translate-y-1/2 p-2 sm:p-2.5 bg-white/90 dark:bg-slate-900/90 hover:bg-white dark:hover:bg-slate-900 active:scale-90 rounded-full text-slate-800 dark:text-slate-100 transition-all shadow-md z-10 border border-slate-200/50"
+                                        className="absolute left-2.5 top-1/2 -translate-y-1/2 p-2 sm:p-2.5 bg-white/90  hover:bg-white  active:scale-90 rounded-full text-slate-800  transition-all shadow-md z-10 border border-slate-200/50"
                                     >
                                         <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
                                     </button>
                                     <button 
                                         onClick={() => setActiveImageIndex(prev => prev < selectedProduct.images!.length - 1 ? prev + 1 : 0)}
-                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-2 sm:p-2.5 bg-white/90 dark:bg-slate-900/90 hover:bg-white dark:hover:bg-slate-900 active:scale-90 rounded-full text-slate-800 dark:text-slate-100 transition-all shadow-md z-10 border border-slate-200/50"
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-2 sm:p-2.5 bg-white/90  hover:bg-white  active:scale-90 rounded-full text-slate-800  transition-all shadow-md z-10 border border-slate-200/50"
                                     >
                                         <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
                                     </button>
