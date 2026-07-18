@@ -49,11 +49,6 @@ export interface Product {
   discountType?: 'fixed' | 'percentage';
   purchaseSources?: { accountId: string; amount: number }[];
   hideInCatalog?: boolean;
-  lastPriceUpdate?: {
-    source: 'MonPrice' | 'Manual' | 'TCGPlayer';
-    date: string;
-    previousPrice: number;
-  };
 }
 
 export interface FinancialAccount {

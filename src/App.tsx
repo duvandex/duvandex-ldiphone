@@ -20,7 +20,7 @@ import Catalog from './components/Catalog';
 import WarrantyPage from './components/WarrantyPage';
 import Settings from './components/Settings';
 import Crypto from './components/Crypto';
-import PokemonTCG from './components/PokemonTCG';
+import { ThemeProvider } from './hooks/useTheme';
 import { AppDataProvider, useData } from './context/AppDataContext';
 import { loginWithGoogle, logout, loginWithEmail } from './lib/firebase';
 
@@ -142,7 +142,6 @@ function Navigation({ onLogout, user }: { onLogout: () => void, user: any }) {
     { path: '/', label: 'Resumen', icon: LayoutDashboard },
     { path: '/investors', label: 'Inversores', icon: Users },
     { path: '/inventory', label: 'Inventario', icon: Package },
-    { path: '/pokemon', label: 'Pokémon TCG', icon: Sparkles },
     { path: '/sales', label: 'Ventas', icon: ShoppingCart },
     { path: '/finance', label: 'Cuentas/Gastos', icon: Wallet },
     { path: '/crypto', label: 'Criptomonedas', icon: Coins },
@@ -167,7 +166,7 @@ function Navigation({ onLogout, user }: { onLogout: () => void, user: any }) {
                 <Link
                 key={item.path}
                 to="/catalog"
-                className="flex items-center gap-2 px-6 h-12 rounded-full text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm transition-all whitespace-nowrap btn-premium"
+                className="flex items-center gap-2 px-3 py-2 rounded-full text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm transition-all whitespace-nowrap btn-premium"
                 >
                 <Icon className="w-3.5 h-3.5" />
                 {item.label}
@@ -180,7 +179,7 @@ function Navigation({ onLogout, user }: { onLogout: () => void, user: any }) {
               key={item.path}
               to={item.path}
               className={cn(
-                "flex items-center gap-2 px-5 h-11 rounded-full text-xs font-bold transition-all whitespace-nowrap",
+                "flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all whitespace-nowrap",
                 isActive 
                   ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 scale-105" 
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -195,7 +194,7 @@ function Navigation({ onLogout, user }: { onLogout: () => void, user: any }) {
       
       <button
         onClick={onLogout}
-        className="ml-auto flex items-center gap-2 px-5 h-11 rounded-full text-xs font-bold text-rose-500 hover:bg-rose-50 transition-all whitespace-nowrap"
+        className="ml-auto flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold text-rose-500 hover:bg-rose-50 transition-all whitespace-nowrap"
       >
         <LogOut className="w-3.5 h-3.5" />
         Salir
@@ -237,9 +236,11 @@ function QuotaWarning() {
 
 export default function App() {
   return (
-    <AppDataProvider>
-      <AppContent />
-    </AppDataProvider>
+    <ThemeProvider>
+      <AppDataProvider>
+        <AppContent />
+      </AppDataProvider>
+    </ThemeProvider>
   );
 }
 
@@ -287,9 +288,6 @@ function AppContent() {
           } />
           <Route path="/finance" element={
             !isAuthenticated ? <Navigate to="/login" replace /> : <AdminLayout><Finance /></AdminLayout>
-          } />
-          <Route path="/pokemon" element={
-            !isAuthenticated ? <Navigate to="/login" replace /> : <AdminLayout><PokemonTCG /></AdminLayout>
           } />
           <Route path="/crypto" element={
             !isAuthenticated ? <Navigate to="/login" replace /> : <AdminLayout><Crypto /></AdminLayout>

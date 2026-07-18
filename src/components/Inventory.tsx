@@ -487,10 +487,8 @@ export default function Inventory() {
         valB = (b as any)[sortBy] || '';
       }
 
-      if (typeof valA === 'string') {
-        valA = valA.toLowerCase();
-        valB = valB.toLowerCase();
-      }
+      if (typeof valA === 'string') valA = valA.toLowerCase();
+      if (typeof valB === 'string') valB = valB.toLowerCase();
 
       if (valA < valB) return sortOrder === 'asc' ? -1 : 1;
       if (valA > valB) return sortOrder === 'asc' ? 1 : -1;
@@ -1905,7 +1903,7 @@ export default function Inventory() {
 
       {/* Bulk Action Bar */}
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-[calc(2.5rem+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-2xl bg-slate-950 text-white rounded-[2.5rem] p-6 shadow-2xl flex items-center justify-between gap-4 animate-in slide-in-from-bottom-10 duration-500 ring-1 ring-white/10 backdrop-blur-2xl bg-opacity-90">
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-2xl bg-slate-950 text-white rounded-[2.5rem] p-6 shadow-2xl flex items-center justify-between gap-4 animate-in slide-in-from-bottom-10 duration-500 ring-1 ring-white/10 backdrop-blur-2xl bg-opacity-90">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center text-2xl font-black border border-white/5 shadow-inner">
               {selectedIds.size}
@@ -2181,8 +2179,8 @@ export default function Inventory() {
 
       {/* Reserve Product Dialog */}
       <Dialog open={isReserveOpen} onOpenChange={setIsReserveOpen}>
-        <DialogContent className="sm:max-w-[425px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl max-h-[90vh] overflow-y-auto">
-          <div className="p-8 custom-scrollbar">
+        <DialogContent className="sm:max-w-[425px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
+          <div className="max-h-[95vh] overflow-y-auto p-8 custom-scrollbar">
             <DialogHeader className="mb-4">
               <DialogTitle className="text-2xl font-black tracking-tight uppercase text-orange-600 flex items-center gap-2">
                   <HandCoins className="w-6 h-6" /> Separar Equipo
@@ -2512,7 +2510,7 @@ export default function Inventory() {
         setIsDeleteOpen(open);
         if (!open) setSelectedProduct(null);
       }}>
-        <DialogContent className="max-w-[400px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[400px]">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-rose-600 flex items-center gap-2">
               <Trash2 className="w-5 h-5" /> Confirmar Eliminación
@@ -2526,16 +2524,16 @@ export default function Inventory() {
               Esta acción es permanente y no se podrá recuperar el registro del inventario.
             </p>
           </div>
-          <div className="flex flex-col sm:flex-row gap-3 justify-end">
-            <Button variant="outline" className="h-12 sm:h-10" onClick={() => setIsDeleteOpen(false)}>Cancelar</Button>
-            <Button variant="destructive" className="h-12 sm:h-10" onClick={handleDeleteProduct}>Eliminar Definitivamente</Button>
+          <div className="flex gap-3 justify-end">
+            <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>Cancelar</Button>
+            <Button variant="destructive" onClick={handleDeleteProduct}>Eliminar Definitivamente</Button>
           </div>
         </DialogContent>
       </Dialog>
 
       <Dialog open={isSellOpen} onOpenChange={setIsSellOpen}>
-        <DialogContent className="sm:max-w-[425px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl max-h-[90vh] overflow-y-auto">
-          <div className="p-8 custom-scrollbar">
+        <DialogContent className="sm:max-w-[425px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
+          <div className="max-h-[95vh] overflow-y-auto p-8 custom-scrollbar">
             <DialogHeader className="mb-4">
               <DialogTitle className="text-2xl font-black tracking-tight uppercase">Registrar Venta</DialogTitle>
             </DialogHeader>

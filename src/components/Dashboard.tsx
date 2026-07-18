@@ -160,7 +160,7 @@ export default function Dashboard() {
   const stats = React.useMemo(() => [
     { label: 'Ventas Periodo', value: fmt(totalRevenue), icon: ShoppingCart, color: 'bg-primary/10 text-primary' },
     { label: 'Ganancia Periodo', value: fmt(totalProfit), icon: TrendingUp, color: totalProfit >= 0 ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500' },
-    { label: 'Capital Stock', value: fmt(stockValue), icon: Package, color: 'bg-blue-500/10 text-blue-500' },
+    { label: 'Capital en Stock', value: fmt(stockValue), icon: Package, color: 'bg-blue-500/10 text-blue-500' },
     { label: 'Cuentas x Cobrar', value: fmt(pendingDebts), icon: CreditCard, color: 'bg-amber-500/10 text-amber-500' },
     { label: 'Pasivos (Deudas)', value: fmt(totalLiabilities), icon: TrendingDown, color: 'bg-rose-600/10 text-rose-600' },
   ], [totalRevenue, totalProfit, stockValue, pendingDebts, totalLiabilities]);
@@ -240,7 +240,7 @@ export default function Dashboard() {
         </Card>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {stats.map((stat) => (
           <motion.div key={stat.label} variants={item}>
             <Card className="card-premium border-none">

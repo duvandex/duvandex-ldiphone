@@ -48,7 +48,7 @@ export const getProductWarranty = (p: Product) => {
         short: "🍏 1 Año Apple Directo",
         long: "1 Año Garantía Directa Apple",
         description: "Equipo original nuevo o con garantía vigente de Apple. Cobertura oficial de Apple de un año a nivel mundial.",
-        badgeColor: "bg-[#f15a24]/10 text-[#f15a24]  "
+        badgeColor: "bg-[#f15a24]/10 text-[#f15a24] dark:bg-[#f15a24]/20 dark:text-[#f15a24]"
       };
     } else {
       const months = p.warrantyMonths || 3;
@@ -56,7 +56,7 @@ export const getProductWarranty = (p: Product) => {
         short: `🛡️ ${months} Meses Garantía Premium`,
         long: `Garantía Premium de ${months} Meses`,
         description: `iPhone certificado con batería testeada. Incluye ${months} meses de garantía con cobertura técnica y soporte post-venta de confianza.`,
-        badgeColor: "bg-blue-50 text-blue-700  "
+        badgeColor: "bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400"
       };
     }
   }
@@ -67,7 +67,7 @@ export const getProductWarranty = (p: Product) => {
     short: `🛡️ ${months} Meses Garantía`,
     long: `Garantía de ${months} Meses`,
     description: `Este artículo cuenta con ${months} meses de garantía local y de nuestra marca con cobertura de soporte técnico ante cualquier imperfección.`,
-    badgeColor: "bg-slate-50 text-slate-700  "
+    badgeColor: "bg-slate-50 text-slate-700 dark:bg-slate-900/45 dark:text-slate-300"
   };
 };
 
@@ -453,7 +453,7 @@ export default function Catalog() {
                     )}
                     
                     <Badge variant={p.status === 'stock' ? 'secondary' : (p.status === 'reserved' || p.status === 'out_of_stock') ? 'outline' : 'default'} className={cn(
-                      "absolute top-2 right-2 sm:top-4 sm:right-4 z-10 text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full border-none shadow-lg backdrop-blur-md",
+                      "absolute top-2 right-2 sm:top-4 sm:right-4 z-10 text-[7px] sm:text-[8px] font-black uppercase tracking-[0.2em] px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full border-none shadow-lg backdrop-blur-md",
                       p.status === 'stock' ? "bg-white/90 text-[#f15a24]" : 
                       (p.status === 'reserved' || p.status === 'out_of_stock') ? "bg-orange-50/90 text-orange-600" :
                       "bg-rose-50/90 text-rose-600"
@@ -467,21 +467,21 @@ export default function Catalog() {
                   <CardContent className="p-4 sm:p-6 flex flex-col flex-1 bg-white">
                     <div className="mb-auto">
                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-[#f15a24]">{p.category}</span>
-                          <span className="text-[9px] sm:text-[10px] font-medium uppercase tracking-widest text-slate-300">ID: {p.id.slice(0, 6)}</span>
+                          <span className="text-[7px] sm:text-[10px] font-black uppercase tracking-widest text-[#f15a24]">{p.category}</span>
+                          <span className="text-[7px] sm:text-[10px] font-medium uppercase tracking-widest text-slate-300">ID: {p.id.slice(0, 6)}</span>
                        </div>
-                       <h4 className="text-sm sm:text-2xl font-bold text-slate-900 leading-tight tracking-tight group-hover:text-[#f15a24] transition-colors" onClick={() => { setSelectedProduct(p); setActiveImageIndex(0); }}>{p.name}</h4>
+                       <h4 className="text-sm sm:text-2xl font-bold text-slate-900 leading-tight sm:line-clamp-2 min-h-0 sm:min-h-[3.5rem] tracking-tight group-hover:text-[#f15a24] transition-colors" onClick={() => { setSelectedProduct(p); setActiveImageIndex(0); }}>{p.name}</h4>
                        
                        {/* Auto Spec Labels */}
                        {(p.category === 'CELULARES' || p.category === 'TABLETS' || p.category === 'RELOJ INTELIGENTES' || p.category === 'AURICULARES' || p.name.toLowerCase().includes('iphone') || p.name.toLowerCase().includes('ipad') || p.name.toLowerCase().includes('apple')) && (
                          <div className="flex flex-wrap gap-1.5 mt-1.5">
                            {extractGB(p.name, p.description) && (
-                             <div className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter flex items-center gap-0.5 shadow-xs">
+                             <div className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-tighter flex items-center gap-0.5 shadow-xs">
                                💾 {extractGB(p.name, p.description)}
                              </div>
                            )}
                            {extractBattery(p.name, p.description) && (
-                             <div className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter flex items-center gap-0.5 shadow-xs">
+                             <div className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-tighter flex items-center gap-0.5 shadow-xs">
                                🔋 {extractBattery(p.name, p.description)}
                              </div>
                            )}
@@ -489,7 +489,7 @@ export default function Catalog() {
                              const warranty = getProductWarranty(p);
                              if (!warranty) return null;
                              return (
-                               <div className={cn("px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter flex items-center gap-0.5 shadow-xs", warranty.badgeColor)}>
+                               <div className={cn("px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-tighter flex items-center gap-0.5 shadow-xs", warranty.badgeColor)}>
                                  {warranty.short}
                                </div>
                              );
@@ -577,7 +577,7 @@ export default function Catalog() {
                                         onMouseEnter={() => setActiveImageIndex(i)}
                                         className={cn(
                                             "w-11 h-11 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-lg sm:rounded-xl overflow-hidden border-2 transition-all p-0.5 shrink-0 bg-white shadow-xs focus:outline-none",
-                                            activeImageIndex === i ? "border-slate-800  scale-105" : "border-slate-100 hover:border-slate-300  opacity-60 hover:opacity-100"
+                                            activeImageIndex === i ? "border-slate-800 dark:border-slate-200 scale-105" : "border-slate-100 hover:border-slate-300 dark:border-slate-700 opacity-60 hover:opacity-100"
                                         )}
                                         aria-label={`Ver imagen ${i + 1}`}
                                     >
@@ -632,13 +632,13 @@ export default function Catalog() {
                                 <>
                                     <button 
                                         onClick={() => setActiveImageIndex(prev => prev > 0 ? prev - 1 : selectedProduct.images!.length - 1)}
-                                        className="absolute left-2.5 top-1/2 -translate-y-1/2 p-2 sm:p-2.5 bg-white/90  hover:bg-white  active:scale-90 rounded-full text-slate-800  transition-all shadow-md z-10 border border-slate-200/50"
+                                        className="absolute left-2.5 top-1/2 -translate-y-1/2 p-2 sm:p-2.5 bg-white/90 dark:bg-slate-900/90 hover:bg-white dark:hover:bg-slate-900 active:scale-90 rounded-full text-slate-800 dark:text-slate-100 transition-all shadow-md z-10 border border-slate-200/50"
                                     >
                                         <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
                                     </button>
                                     <button 
                                         onClick={() => setActiveImageIndex(prev => prev < selectedProduct.images!.length - 1 ? prev + 1 : 0)}
-                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-2 sm:p-2.5 bg-white/90  hover:bg-white  active:scale-90 rounded-full text-slate-800  transition-all shadow-md z-10 border border-slate-200/50"
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-2 sm:p-2.5 bg-white/90 dark:bg-slate-900/90 hover:bg-white dark:hover:bg-slate-900 active:scale-90 rounded-full text-slate-800 dark:text-slate-100 transition-all shadow-md z-10 border border-slate-200/50"
                                     >
                                         <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
                                     </button>
@@ -832,7 +832,7 @@ export default function Catalog() {
                        ) : <div className="w-full h-full flex items-center justify-center"><Smartphone className="w-6 h-6 opacity-20" /></div>}
                     </div>
                     <div className="flex-1 min-w-0">
-                       <h4 className="text-[10px] font-black uppercase tracking-tight">{p.name}</h4>
+                       <h4 className="text-[10px] font-black uppercase tracking-tight truncate">{p.name}</h4>
                        <p className="text-lg font-black text-primary">{fmt(p.salePrice || 0)}</p>
                     </div>
                     <button 

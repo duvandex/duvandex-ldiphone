@@ -8,9 +8,11 @@ import { useData } from '../context/AppDataContext';
 import { useCloudinary } from '../hooks/useCloudinary';
 import { Building2, ShieldCheck, Camera, Save, RefreshCcw, Image as ImageIcon, Moon, Sun } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useTheme } from '../hooks/useTheme';
 
 export default function Settings() {
   const { data, updateSettings } = useData();
+  const { theme, toggleTheme } = useTheme();
   const { uploadImage, uploading: cloudUploading } = useCloudinary();
   const [formData, setFormData] = useState({
     companyName: '',
