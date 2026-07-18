@@ -453,7 +453,7 @@ export default function Catalog() {
                     )}
                     
                     <Badge variant={p.status === 'stock' ? 'secondary' : (p.status === 'reserved' || p.status === 'out_of_stock') ? 'outline' : 'default'} className={cn(
-                      "absolute top-2 right-2 sm:top-4 sm:right-4 z-10 text-[7px] sm:text-[8px] font-black uppercase tracking-[0.2em] px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full border-none shadow-lg backdrop-blur-md",
+                      "absolute top-2 right-2 sm:top-4 sm:right-4 z-10 text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em] px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full border-none shadow-lg backdrop-blur-md",
                       p.status === 'stock' ? "bg-white/90 text-[#f15a24]" : 
                       (p.status === 'reserved' || p.status === 'out_of_stock') ? "bg-orange-50/90 text-orange-600" :
                       "bg-rose-50/90 text-rose-600"
@@ -467,21 +467,21 @@ export default function Catalog() {
                   <CardContent className="p-4 sm:p-6 flex flex-col flex-1 bg-white">
                     <div className="mb-auto">
                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-[7px] sm:text-[10px] font-black uppercase tracking-widest text-[#f15a24]">{p.category}</span>
-                          <span className="text-[7px] sm:text-[10px] font-medium uppercase tracking-widest text-slate-300">ID: {p.id.slice(0, 6)}</span>
+                          <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-[#f15a24]">{p.category}</span>
+                          <span className="text-[9px] sm:text-[10px] font-medium uppercase tracking-widest text-slate-300">ID: {p.id.slice(0, 6)}</span>
                        </div>
-                       <h4 className="text-sm sm:text-2xl font-bold text-slate-900 line-clamp-2 leading-tight min-h-[2.5rem] sm:min-h-[3.5rem] tracking-tight group-hover:text-[#f15a24] transition-colors" onClick={() => { setSelectedProduct(p); setActiveImageIndex(0); }}>{p.name}</h4>
+                       <h4 className="text-sm sm:text-2xl font-bold text-slate-900 leading-tight tracking-tight group-hover:text-[#f15a24] transition-colors" onClick={() => { setSelectedProduct(p); setActiveImageIndex(0); }}>{p.name}</h4>
                        
                        {/* Auto Spec Labels */}
                        {(p.category === 'CELULARES' || p.category === 'TABLETS' || p.category === 'RELOJ INTELIGENTES' || p.category === 'AURICULARES' || p.name.toLowerCase().includes('iphone') || p.name.toLowerCase().includes('ipad') || p.name.toLowerCase().includes('apple')) && (
                          <div className="flex flex-wrap gap-1.5 mt-1.5">
                            {extractGB(p.name, p.description) && (
-                             <div className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-tighter flex items-center gap-0.5 shadow-xs">
+                             <div className="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter flex items-center gap-0.5 shadow-xs">
                                💾 {extractGB(p.name, p.description)}
                              </div>
                            )}
                            {extractBattery(p.name, p.description) && (
-                             <div className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-tighter flex items-center gap-0.5 shadow-xs">
+                             <div className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter flex items-center gap-0.5 shadow-xs">
                                🔋 {extractBattery(p.name, p.description)}
                              </div>
                            )}
@@ -489,7 +489,7 @@ export default function Catalog() {
                              const warranty = getProductWarranty(p);
                              if (!warranty) return null;
                              return (
-                               <div className={cn("px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-tighter flex items-center gap-0.5 shadow-xs", warranty.badgeColor)}>
+                               <div className={cn("px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter flex items-center gap-0.5 shadow-xs", warranty.badgeColor)}>
                                  {warranty.short}
                                </div>
                              );
@@ -832,7 +832,7 @@ export default function Catalog() {
                        ) : <div className="w-full h-full flex items-center justify-center"><Smartphone className="w-6 h-6 opacity-20" /></div>}
                     </div>
                     <div className="flex-1 min-w-0">
-                       <h4 className="text-[10px] font-black uppercase tracking-tight truncate">{p.name}</h4>
+                       <h4 className="text-[10px] font-black uppercase tracking-tight">{p.name}</h4>
                        <p className="text-lg font-black text-primary">{fmt(p.salePrice || 0)}</p>
                     </div>
                     <button 
